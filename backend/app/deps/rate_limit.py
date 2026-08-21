@@ -30,7 +30,7 @@ def rate_limit(key_prefix: str, spec: str) -> Callable:
             ttl = await redis_client.ttl(redis_key)
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many requests, please try again shortly.",
+                detail="Demasiadas solicitudes, inténtalo de nuevo en un momento.",
                 headers={"Retry-After": str(max(ttl, 1))},
             )
 

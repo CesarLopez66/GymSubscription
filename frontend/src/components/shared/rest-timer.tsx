@@ -24,7 +24,7 @@ export function RestTimer({ seconds }: { seconds: number }) {
       disabled={isRunning}
     >
       <Timer className="size-3.5" />
-      {isRunning ? `${remaining}s` : `Rest ${seconds}s`}
+      {isRunning ? `${remaining}s` : `Descanso ${seconds}s`}
     </Button>
   )
 }

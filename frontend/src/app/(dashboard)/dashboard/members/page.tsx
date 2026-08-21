@@ -49,6 +49,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 import { ApiError } from "@/lib/api-client"
+import { ROLE_LABELS } from "@/lib/labels"
 import type { UserRole } from "@/lib/types"
 import { useCreateUser, useDeactivateUser, useUsers } from "@/hooks/use-users"
 
@@ -58,7 +59,7 @@ const userSchema = z.object({
   first_name: z.string().min(1),
   last_name: z.string().min(1),
   email: z.string().email(),
-  password: z.string().min(8, "At least 8 characters"),
+  password: z.string().min(8, "Debe tener al menos 8 caracteres"),
   role: z.enum(["MEMBER", "TRAINER", "NUTRITIONIST", "GYM_ADMIN"]),
   phone: z.string().optional(),
 })
@@ -87,12 +88,12 @@ export default function MembersPage() {
   const onSubmit = (values: UserFormValues) => {
     createUser.mutate(values, {
       onSuccess: () => {
-        toast.success(`${values.first_name} ${values.last_name} added`)
+        toast.success(`${values.first_name} ${values.last_name} agregado`)
         form.reset()
         setOpen(false)
       },
       onError: (error) => {
-        toast.error(error instanceof ApiError ? error.detail : "Could not create user")
+        toast.error(error instanceof ApiError ? error.detail : "No se pudo crear el usuario")
       },
     })
   }
@@ -102,15 +103,15 @@ export default function MembersPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">People</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Personas</h1>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger render={<Button size="sm" />}>
             <Plus className="size-4" />
-            New person
+            Nueva persona
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add a person</DialogTitle>
+              <DialogTitle>Agregar persona</DialogTitle>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
@@ -120,7 +121,7 @@ export default function MembersPage() {
                     name="first_name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>First name</FormLabel>
+                        <FormLabel>Nombre</FormLabel>
                         <FormControl>
                           <Input {...field} />
                         </FormControl>
@@ -133,7 +134,7 @@ export default function MembersPage() {
                     name="last_name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Last name</FormLabel>
+                        <FormLabel>Apellido</FormLabel>
                         <FormControl>
                           <Input {...field} />
                         </FormControl>
@@ -147,7 +148,7 @@ export default function MembersPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>Correo electrónico</FormLabel>
                       <FormControl>
                         <Input type="email" {...field} />
                       </FormControl>
@@ -160,7 +161,7 @@ export default function MembersPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Temporary password</FormLabel>
+                      <FormLabel>Contraseña temporal</FormLabel>
                       <FormControl>
                         <Input type="password" {...field} />
                       </FormControl>
@@ -173,7 +174,7 @@ export default function MembersPage() {
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Phone (optional)</FormLabel>
+                      <FormLabel>Teléfono (opcional)</FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
@@ -186,7 +187,7 @@ export default function MembersPage() {
                   name="role"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Role</FormLabel>
+                      <FormLabel>Rol</FormLabel>
                       <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
                           <SelectTrigger className="w-full">
@@ -196,7 +197,7 @@ export default function MembersPage() {
                         <SelectContent>
                           {ROLES.map((role) => (
                             <SelectItem key={role} value={role}>
-                              {role}
+                              {ROLE_LABELS[role]}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -207,7 +208,7 @@ export default function MembersPage() {
                 />
                 <DialogFooter>
                   <Button type="submit" disabled={createUser.isPending}>
-                    {createUser.isPending ? "Adding…" : "Add person"}
+                    {createUser.isPending ? "Agregando…" : "Agregar persona"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -220,7 +221,7 @@ export default function MembersPage() {
         <TabsList>
           {ROLES.map((role) => (
             <TabsTrigger key={role} value={role}>
-              {role}
+              {ROLE_LABELS[role]}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -229,7 +230,8 @@ export default function MembersPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            {roleFilter} <span className="text-muted-foreground">({data?.total ?? 0})</span>
+            {ROLE_LABELS[roleFilter]}{" "}
+            <span className="text-muted-foreground">({data?.total ?? 0})</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -243,11 +245,11 @@ export default function MembersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Correo electrónico</TableHead>
+                  <TableHead>Teléfono</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -260,7 +262,7 @@ export default function MembersPage() {
                     <TableCell className="text-muted-foreground">{u.phone ?? "—"}</TableCell>
                     <TableCell>
                       <Badge variant={u.is_active ? "default" : "destructive"}>
-                        {u.is_active ? "Active" : "Inactive"}
+                        {u.is_active ? "Activo" : "Inactivo"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -272,12 +274,12 @@ export default function MembersPage() {
                           deactivateUser.mutate(u.id, {
                             onError: (error) =>
                               toast.error(
-                                error instanceof ApiError ? error.detail : "Action failed"
+                                error instanceof ApiError ? error.detail : "La acción falló"
                               ),
                           })
                         }
                       >
-                        Deactivate
+                        Desactivar
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -285,7 +287,7 @@ export default function MembersPage() {
                 {users.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      No one here yet.
+                      Todavía no hay nadie aquí.
                     </TableCell>
                   </TableRow>
                 )}

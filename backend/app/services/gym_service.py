@@ -24,7 +24,7 @@ async def _ensure_subdomain_available(
         query = query.where(Gym.id != exclude_gym_id)
     result = await db.execute(query)
     if result.scalar_one_or_none() is not None:
-        raise GymSubdomainTakenError(f"Subdomain '{subdomain}' is already taken")
+        raise GymSubdomainTakenError(f"El subdominio '{subdomain}' ya está en uso")
 
 
 async def create_gym(db: AsyncSession, data: GymCreate) -> Gym:
@@ -40,7 +40,7 @@ async def get_gym(db: AsyncSession, gym_id: uuid.UUID) -> Gym:
     result = await db.execute(select(Gym).where(Gym.id == gym_id))
     gym = result.scalar_one_or_none()
     if gym is None:
-        raise GymNotFoundError("Gym not found")
+        raise GymNotFoundError("Gimnasio no encontrado")
     return gym
 
 

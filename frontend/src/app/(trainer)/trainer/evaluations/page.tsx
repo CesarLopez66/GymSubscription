@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/table"
 import { MemberPicker } from "@/components/shared/member-picker"
 import { ApiError } from "@/lib/api-client"
+import { ACTIVITY_LEVEL_LABELS, FITNESS_GOAL_LABELS } from "@/lib/labels"
 import type { ActivityLevel, FitnessGoal } from "@/lib/types"
 import { useCreateEvaluation, useEvaluations } from "@/hooks/use-evaluations"
 
@@ -76,29 +77,29 @@ export default function EvaluationsPage() {
 
   const onSubmit = (values: EvaluationFormValues) => {
     if (!memberId) {
-      toast.error("Select a member first")
+      toast.error("Selecciona un miembro primero")
       return
     }
     createEvaluation.mutate(
       { ...values, user_id: memberId },
       {
-        onSuccess: () => toast.success("Evaluation recorded"),
+        onSuccess: () => toast.success("Evaluación registrada"),
         onError: (error) =>
-          toast.error(error instanceof ApiError ? error.detail : "Could not save evaluation"),
+          toast.error(error instanceof ApiError ? error.detail : "No se pudo guardar la evaluación"),
       }
     )
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Physical evaluations</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Evaluaciones físicas</h1>
       <MemberPicker value={memberId} onChange={setMemberId} />
 
       {memberId && (
         <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
           <Card>
             <CardHeader>
-              <CardTitle>New evaluation</CardTitle>
+              <CardTitle>Nueva evaluación</CardTitle>
             </CardHeader>
             <CardContent>
               <Form {...form}>
@@ -109,7 +110,7 @@ export default function EvaluationsPage() {
                       name="weight_kg"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Weight (kg)</FormLabel>
+                          <FormLabel>Peso (kg)</FormLabel>
                           <FormControl>
                             <Input type="number" step="0.1" {...field} value={field.value as number} />
                           </FormControl>
@@ -122,7 +123,7 @@ export default function EvaluationsPage() {
                       name="height_cm"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Height (cm)</FormLabel>
+                          <FormLabel>Estatura (cm)</FormLabel>
                           <FormControl>
                             <Input type="number" step="0.1" {...field} value={field.value as number} />
                           </FormControl>
@@ -136,7 +137,7 @@ export default function EvaluationsPage() {
                     name="body_fat_percentage"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Body fat % (optional)</FormLabel>
+                        <FormLabel>% de grasa corporal (opcional)</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
@@ -154,7 +155,7 @@ export default function EvaluationsPage() {
                     name="fitness_goal"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Fitness goal</FormLabel>
+                        <FormLabel>Objetivo</FormLabel>
                         <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
                             <SelectTrigger className="w-full">
@@ -164,7 +165,7 @@ export default function EvaluationsPage() {
                           <SelectContent>
                             {FITNESS_GOALS.map((g) => (
                               <SelectItem key={g} value={g}>
-                                {g}
+                                {FITNESS_GOAL_LABELS[g]}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -178,7 +179,7 @@ export default function EvaluationsPage() {
                     name="activity_level"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Activity level</FormLabel>
+                        <FormLabel>Nivel de actividad</FormLabel>
                         <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
                             <SelectTrigger className="w-full">
@@ -188,7 +189,7 @@ export default function EvaluationsPage() {
                           <SelectContent>
                             {ACTIVITY_LEVELS.map((a) => (
                               <SelectItem key={a} value={a}>
-                                {a}
+                                {ACTIVITY_LEVEL_LABELS[a]}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -202,7 +203,7 @@ export default function EvaluationsPage() {
                     name="notes"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Notes</FormLabel>
+                        <FormLabel>Notas</FormLabel>
                         <FormControl>
                           <Textarea {...field} />
                         </FormControl>
@@ -211,7 +212,7 @@ export default function EvaluationsPage() {
                     )}
                   />
                   <Button type="submit" disabled={createEvaluation.isPending}>
-                    {createEvaluation.isPending ? "Saving…" : "Save evaluation"}
+                    {createEvaluation.isPending ? "Guardando…" : "Guardar evaluación"}
                   </Button>
                 </form>
               </Form>
@@ -220,16 +221,16 @@ export default function EvaluationsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>History</CardTitle>
+              <CardTitle>Historial</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Weight</TableHead>
-                    <TableHead>Body fat</TableHead>
-                    <TableHead>Goal</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Peso</TableHead>
+                    <TableHead>Grasa corporal</TableHead>
+                    <TableHead>Objetivo</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -242,13 +243,13 @@ export default function EvaluationsPage() {
                       <TableCell>
                         {ev.body_fat_percentage != null ? `${ev.body_fat_percentage}%` : "—"}
                       </TableCell>
-                      <TableCell>{ev.fitness_goal}</TableCell>
+                      <TableCell>{FITNESS_GOAL_LABELS[ev.fitness_goal]}</TableCell>
                     </TableRow>
                   ))}
                   {(evaluations?.items?.length ?? 0) === 0 && (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center text-muted-foreground">
-                        No evaluations yet.
+                        Todavía no hay evaluaciones.
                       </TableCell>
                     </TableRow>
                   )}

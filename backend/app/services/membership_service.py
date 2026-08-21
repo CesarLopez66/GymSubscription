@@ -26,7 +26,7 @@ async def get_membership(db: AsyncSession, gym_id: uuid.UUID, membership_id: uui
     )
     membership = result.scalar_one_or_none()
     if membership is None:
-        raise MembershipNotFoundError("Membership plan not found")
+        raise MembershipNotFoundError("Plan de membresía no encontrado")
     return membership
 
 

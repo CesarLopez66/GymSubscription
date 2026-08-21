@@ -33,7 +33,7 @@ async def _ensure_email_available(db: AsyncSession, gym_id: uuid.UUID, email: st
         select(User).where(User.gym_id == gym_id, User.email == email)
     )
     if result.scalar_one_or_none() is not None:
-        raise EmailAlreadyExistsError(f"Email '{email}' is already registered in this gym")
+        raise EmailAlreadyExistsError(f"El correo '{email}' ya está registrado en este gimnasio")
 
 
 async def _ensure_member_limit_not_exceeded(db: AsyncSession, gym_id: uuid.UUID) -> None:
@@ -51,7 +51,7 @@ async def _ensure_member_limit_not_exceeded(db: AsyncSession, gym_id: uuid.UUID)
     active_members = count_result.scalar_one()
     if active_members >= limit:
         raise MemberLimitExceededError(
-            f"This gym's '{gym.plan_tier.value}' plan allows at most {limit} active members"
+            f"El plan '{gym.plan_tier.value}' de este gimnasio permite un máximo de {limit} miembros activos"
         )
 
 
@@ -83,7 +83,7 @@ async def get_user(db: AsyncSession, gym_id: uuid.UUID, user_id: uuid.UUID) -> U
     )
     user = result.scalar_one_or_none()
     if user is None:
-        raise UserNotFoundError("User not found")
+        raise UserNotFoundError("Usuario no encontrado")
     return user
 
 
@@ -124,7 +124,7 @@ async def change_password(
 ) -> User:
     user = await get_user(db, gym_id, user_id)
     if not verify_password(data.current_password, user.password_hash):
-        raise InvalidPasswordError("Current password is incorrect")
+        raise InvalidPasswordError("La contraseña actual es incorrecta")
     user.password_hash = hash_password(data.new_password)
     user.token_version += 1
     await db.flush()

@@ -25,7 +25,7 @@ async def get_current_user(
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
+            detail="No autenticado",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -35,14 +35,14 @@ async def get_current_user(
     except (ValueError, ValidationError) as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            detail="Token inválido o expirado",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
     if payload.type != TokenType.ACCESS.value:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type",
+            detail="Tipo de token inválido",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -59,7 +59,7 @@ async def get_current_user(
     if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive",
+            detail="Usuario no encontrado o inactivo",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -68,7 +68,7 @@ async def get_current_user(
     if payload.gym_id != user.gym_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token no longer valid for this user",
+            detail="El token ya no es válido para este usuario",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -77,7 +77,7 @@ async def get_current_user(
     if payload.tv != user.token_version:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked",
+            detail="El token ha sido revocado",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -87,7 +87,7 @@ async def get_current_user(
     if tenant_hint.gym_id is not None and tenant_hint.gym_id != user.gym_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="X-Gym-ID header does not match the authenticated user's tenant",
+            detail="El encabezado X-Gym-ID no coincide con el gimnasio del usuario autenticado",
         )
 
     return user
@@ -95,7 +95,7 @@ async def get_current_user(
 
 async def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
     if not current_user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuario inactivo")
     return current_user
 
 
@@ -104,7 +104,7 @@ def require_role(allowed_roles: list[UserRole]) -> Callable:
         if current_user.role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Role '{current_user.role.value}' is not permitted to perform this action",
+                detail=f"El rol '{current_user.role.value}' no tiene permiso para realizar esta acción",
             )
         return current_user
 
@@ -120,6 +120,6 @@ async def get_tenant_gym_id(current_user: User = Depends(get_current_active_user
     if current_user.gym_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This action requires a user assigned to a gym",
+            detail="Esta acción requiere un usuario asignado a un gimnasio",
         )
     return current_user.gym_id

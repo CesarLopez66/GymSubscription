@@ -42,24 +42,24 @@ export default function CheckInMonitorPage() {
     verify.mutate(selectedMember, {
       onSuccess: (result) => {
         if (result.access_granted) {
-          toast.success(`Access granted — ${memberName(selectedMember)}`)
+          toast.success(`Acceso concedido — ${memberName(selectedMember)}`)
         } else {
-          toast.error(`Access denied — ${result.denial_reason ?? "unknown reason"}`)
+          toast.error(`Acceso denegado — ${result.denial_reason ?? "razón desconocida"}`)
         }
       },
       onError: (error) => {
-        toast.error(error instanceof ApiError ? error.detail : "Check-in failed")
+        toast.error(error instanceof ApiError ? error.detail : "Falló el check-in")
       },
     })
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Check-in monitor</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Monitor de check-in</h1>
 
       <Card>
         <CardHeader>
-          <CardTitle>Front desk scan</CardTitle>
+          <CardTitle>Escaneo de recepción</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 sm:flex-row">
           <Select
@@ -67,7 +67,7 @@ export default function CheckInMonitorPage() {
             onValueChange={(value) => setSelectedMember(value ?? "")}
           >
             <SelectTrigger className="w-full sm:w-80">
-              <SelectValue placeholder="Select a member" />
+              <SelectValue placeholder="Selecciona un miembro" />
             </SelectTrigger>
             <SelectContent>
               {(members?.items ?? []).map((m) => (
@@ -78,22 +78,22 @@ export default function CheckInMonitorPage() {
             </SelectContent>
           </Select>
           <Button onClick={handleScan} disabled={!selectedMember || verify.isPending}>
-            {verify.isPending ? "Verifying…" : "Verify access"}
+            {verify.isPending ? "Verificando…" : "Verificar acceso"}
           </Button>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Live feed</CardTitle>
+          <CardTitle>Actividad en vivo</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>Member</TableHead>
-                <TableHead>Result</TableHead>
+                <TableHead>Hora</TableHead>
+                <TableHead>Miembro</TableHead>
+                <TableHead>Resultado</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -107,12 +107,12 @@ export default function CheckInMonitorPage() {
                     {c.access_granted ? (
                       <Badge className="gap-1">
                         <CheckCircle2 className="size-3" />
-                        Granted
+                        Concedido
                       </Badge>
                     ) : (
                       <Badge variant="destructive" className="gap-1">
                         <XCircle className="size-3" />
-                        {c.denial_reason ?? "Denied"}
+                        {c.denial_reason ?? "Denegado"}
                       </Badge>
                     )}
                   </TableCell>
@@ -121,7 +121,7 @@ export default function CheckInMonitorPage() {
               {(checkIns?.items?.length ?? 0) === 0 && (
                 <TableRow>
                   <TableCell colSpan={3} className="text-center text-muted-foreground">
-                    No check-ins yet today.
+                    Todavía no hay check-ins hoy.
                   </TableCell>
                 </TableRow>
               )}

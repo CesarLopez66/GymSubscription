@@ -20,8 +20,8 @@ import { useLogin } from "@/hooks/use-auth"
 import { toast } from "sonner"
 
 const loginSchema = z.object({
-  email: z.string().email("Enter a valid email"),
-  password: z.string().min(1, "Password is required"),
+  email: z.string().email("Ingresa un correo válido"),
+  password: z.string().min(1, "La contraseña es obligatoria"),
   gym_subdomain: z.string().optional(),
 })
 
@@ -43,7 +43,7 @@ export default function LoginPage() {
       },
       {
         onError: (error) => {
-          toast.error(error instanceof ApiError ? error.detail : "Login failed");
+          toast.error(error instanceof ApiError ? error.detail : "No se pudo iniciar sesión");
         },
       }
     )
@@ -53,9 +53,9 @@ export default function LoginPage() {
     <div className="flex flex-1 items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-xl">Sign in to SubGym</CardTitle>
+          <CardTitle className="text-xl">Inicia sesión en SubGym</CardTitle>
           <CardDescription>
-            Leave the gym subdomain blank if you&apos;re a SuperAdmin.
+            Deja el subdominio del gimnasio en blanco si eres Super administrador.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -66,9 +66,9 @@ export default function LoginPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>Correo electrónico</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="you@example.com" {...field} />
+                      <Input type="email" placeholder="tu@ejemplo.com" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -79,7 +79,7 @@ export default function LoginPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>Contraseña</FormLabel>
                     <FormControl>
                       <Input type="password" placeholder="••••••••" {...field} />
                     </FormControl>
@@ -92,7 +92,7 @@ export default function LoginPage() {
                 name="gym_subdomain"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Gym subdomain (optional)</FormLabel>
+                    <FormLabel>Subdominio del gimnasio (opcional)</FormLabel>
                     <FormControl>
                       <Input placeholder="acme" {...field} />
                     </FormControl>
@@ -101,7 +101,7 @@ export default function LoginPage() {
                 )}
               />
               <Button type="submit" className="w-full" disabled={login.isPending}>
-                {login.isPending ? "Signing in…" : "Sign in"}
+                {login.isPending ? "Iniciando sesión…" : "Iniciar sesión"}
               </Button>
             </form>
           </Form>

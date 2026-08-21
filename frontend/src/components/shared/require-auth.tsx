@@ -32,7 +32,7 @@ export function RequireAuth({
   if (!hasHydrated || !accessToken || !user || !allowedRoles.includes(user.role)) {
     return (
       <div className="flex h-screen items-center justify-center text-muted-foreground text-sm">
-        Loading…
+        Cargando…
       </div>
     )
   }

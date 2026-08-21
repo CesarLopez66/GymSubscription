@@ -28,6 +28,12 @@ const DAY_NAMES: DayOfWeek[] = [
 
 const MACRO_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)"]
 
+const MACRO_LABELS: Record<"protein" | "carbs" | "fats", string> = {
+  protein: "Proteína",
+  carbs: "Carbohidratos",
+  fats: "Grasas",
+}
+
 function todayKey() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -83,9 +89,9 @@ export default function MemberDashboardPage() {
 
   const macroData = activeNutritionPlan
     ? [
-        { name: "Protein", grams: activeNutritionPlan.protein_g },
-        { name: "Carbs", grams: activeNutritionPlan.carbs_g },
-        { name: "Fats", grams: activeNutritionPlan.fats_g },
+        { name: "Proteína", grams: activeNutritionPlan.protein_g },
+        { name: "Carbohidratos", grams: activeNutritionPlan.carbs_g },
+        { name: "Grasas", grams: activeNutritionPlan.fats_g },
       ]
     : []
 
@@ -93,24 +99,30 @@ export default function MemberDashboardPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader className="text-center">
-          <CardTitle>Gym access QR</CardTitle>
+          <CardTitle>Código QR de acceso</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-2">
           {user && <QRCodeSVG value={user.id} size={180} />}
-          <p className="text-xs text-muted-foreground">Show this at the front desk to check in</p>
+          <p className="text-xs text-muted-foreground">
+            Muestra esto en recepción para hacer check-in
+          </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Today&apos;s workout</CardTitle>
+          <CardTitle>Rutina de hoy</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {!activePlan && (
-            <p className="text-sm text-muted-foreground">No active workout plan assigned yet.</p>
+            <p className="text-sm text-muted-foreground">
+              Todavía no tienes una rutina asignada.
+            </p>
           )}
           {activePlan && todaysItems.length === 0 && (
-            <p className="text-sm text-muted-foreground">Rest day — nothing scheduled today.</p>
+            <p className="text-sm text-muted-foreground">
+              Día de descanso — nada programado hoy.
+            </p>
           )}
           {todaysItems.map((item) => (
             <div key={item.id} className="flex items-center justify-between rounded-md border p-3">
@@ -146,17 +158,19 @@ export default function MemberDashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            Today&apos;s nutrition
+            Nutrición de hoy
             {activeNutritionPlan && (
               <Badge variant="secondary" className="ml-2">
-                {activeNutritionPlan.calories} kcal target
+                Meta: {activeNutritionPlan.calories} kcal
               </Badge>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {!activeNutritionPlan && (
-            <p className="text-sm text-muted-foreground">No active nutrition plan yet.</p>
+            <p className="text-sm text-muted-foreground">
+              Todavía no tienes un plan de nutrición activo.
+            </p>
           )}
           {activeNutritionPlan && (
             <>
@@ -190,7 +204,7 @@ export default function MemberDashboardPage() {
                 ).map(([key, target]) => (
                   <div key={key} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
-                      <Label className="capitalize">{key}</Label>
+                      <Label>{MACRO_LABELS[key]}</Label>
                       <span className="text-muted-foreground">
                         {loggedGrams[key]} / {target} g
                       </span>

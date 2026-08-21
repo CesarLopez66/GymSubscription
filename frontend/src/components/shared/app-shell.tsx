@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useLogout } from "@/hooks/use-auth"
+import { ROLE_LABELS } from "@/lib/labels"
 import { useAuthStore } from "@/store/auth-store"
 
 export interface NavItem {
@@ -67,9 +68,11 @@ export function AppShell({
             <p className="truncate text-sm font-medium">
               {user?.first_name} {user?.last_name}
             </p>
-            <p className="truncate text-xs text-muted-foreground">{user?.role}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {user ? ROLE_LABELS[user.role] : ""}
+            </p>
           </div>
-          <Button variant="ghost" size="icon" onClick={logout} title="Log out">
+          <Button variant="ghost" size="icon" onClick={logout} title="Cerrar sesión">
             <LogOut className="size-4" />
           </Button>
         </div>

@@ -81,60 +81,62 @@ _LOWER_ACTIVITY = {ActivityLevel.SEDENTARY, ActivityLevel.LIGHT}
 
 _WORKOUT_TEMPLATES: dict[tuple[FitnessGoal, bool], WorkoutTemplateRecommendation] = {
     (FitnessGoal.FAT_LOSS, True): WorkoutTemplateRecommendation(
-        name="Full Body Circuit",
+        name="Circuito de cuerpo completo",
         sessions_per_week=3,
-        focus_areas=["compound lifts", "metabolic conditioning"],
-        description="Full-body sessions combining strength supersets with short conditioning "
-        "finishers; frequency kept moderate to match a lower current activity baseline.",
+        focus_areas=["ejercicios compuestos", "acondicionamiento metabólico"],
+        description="Sesiones de cuerpo completo que combinan superseries de fuerza con "
+        "bloques cortos de acondicionamiento; frecuencia moderada acorde a un nivel de "
+        "actividad base bajo.",
     ),
     (FitnessGoal.FAT_LOSS, False): WorkoutTemplateRecommendation(
-        name="Full Body Circuit+",
+        name="Circuito de cuerpo completo+",
         sessions_per_week=4,
-        focus_areas=["compound lifts", "metabolic conditioning", "accessory volume"],
-        description="Full-body strength work plus conditioning finishers, with an extra session "
-        "since the member already tolerates a higher training load.",
+        focus_areas=["ejercicios compuestos", "acondicionamiento metabólico", "volumen accesorio"],
+        description="Trabajo de fuerza de cuerpo completo más bloques de acondicionamiento, con "
+        "una sesión adicional ya que el miembro tolera una carga de entrenamiento mayor.",
     ),
     (FitnessGoal.MUSCLE_GAIN, True): WorkoutTemplateRecommendation(
-        name="Upper/Lower Split",
+        name="Split tren superior/inferior",
         sessions_per_week=4,
-        focus_areas=["hypertrophy", "progressive overload"],
-        description="Alternating upper/lower sessions to build a base training frequency before "
-        "moving to a higher-volume split.",
+        focus_areas=["hipertrofia", "sobrecarga progresiva"],
+        description="Sesiones alternadas de tren superior e inferior para construir una "
+        "frecuencia de entrenamiento base antes de pasar a un split de mayor volumen.",
     ),
     (FitnessGoal.MUSCLE_GAIN, False): WorkoutTemplateRecommendation(
-        name="Push/Pull/Legs",
+        name="Empuje/Jalón/Pierna",
         sessions_per_week=6,
-        focus_areas=["hypertrophy", "progressive overload", "muscle group specialization"],
-        description="Classic PPL run twice through the week, sized for a member who already "
-        "recovers well from frequent training.",
+        focus_areas=["hipertrofia", "sobrecarga progresiva", "especialización por grupo muscular"],
+        description="El clásico split empuje/jalón/pierna repetido dos veces por semana, "
+        "para un miembro que ya se recupera bien de entrenamientos frecuentes.",
     ),
     (FitnessGoal.MAINTENANCE, True): WorkoutTemplateRecommendation(
-        name="Full Body Maintenance",
+        name="Mantenimiento de cuerpo completo",
         sessions_per_week=3,
-        focus_areas=["general strength", "mobility"],
-        description="Three full-body sessions to maintain current strength and conditioning.",
+        focus_areas=["fuerza general", "movilidad"],
+        description="Tres sesiones de cuerpo completo para mantener la fuerza y el "
+        "acondicionamiento actuales.",
     ),
     (FitnessGoal.MAINTENANCE, False): WorkoutTemplateRecommendation(
-        name="Upper/Lower Maintenance",
+        name="Mantenimiento superior/inferior",
         sessions_per_week=4,
-        focus_areas=["general strength", "conditioning"],
-        description="Upper/lower split to maintain strength and work capacity at a sustainable "
-        "weekly volume.",
+        focus_areas=["fuerza general", "acondicionamiento"],
+        description="Split de tren superior/inferior para mantener la fuerza y la capacidad "
+        "de trabajo con un volumen semanal sostenible.",
     ),
     (FitnessGoal.REHAB, True): WorkoutTemplateRecommendation(
-        name="Corrective & Mobility Focus",
+        name="Enfoque correctivo y de movilidad",
         sessions_per_week=2,
-        focus_areas=["mobility", "stability", "controlled-tempo strength"],
-        description="Low-intensity, controlled-tempo sessions prioritizing range of motion and "
-        "stability; progress gated by trainer sign-off, not by this template.",
+        focus_areas=["movilidad", "estabilidad", "fuerza con tempo controlado"],
+        description="Sesiones de baja intensidad y tempo controlado que priorizan el rango de "
+        "movimiento y la estabilidad; el progreso lo autoriza el entrenador, no esta plantilla.",
     ),
     (FitnessGoal.REHAB, False): WorkoutTemplateRecommendation(
-        name="Corrective & Mobility Focus+",
+        name="Enfoque correctivo y de movilidad+",
         sessions_per_week=3,
-        focus_areas=["mobility", "stability", "controlled-tempo strength"],
-        description="Low-intensity, controlled-tempo sessions prioritizing range of motion and "
-        "stability, at a slightly higher frequency given the member's baseline activity level; "
-        "progress gated by trainer sign-off, not by this template.",
+        focus_areas=["movilidad", "estabilidad", "fuerza con tempo controlado"],
+        description="Sesiones de baja intensidad y tempo controlado que priorizan el rango de "
+        "movimiento y la estabilidad, con una frecuencia algo mayor dada la actividad base del "
+        "miembro; el progreso lo autoriza el entrenador, no esta plantilla.",
     ),
 }
 

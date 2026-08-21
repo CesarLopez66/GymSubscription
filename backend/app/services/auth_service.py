@@ -28,7 +28,7 @@ async def authenticate_user(
         gym_result = await db.execute(select(Gym).where(Gym.subdomain == gym_subdomain))
         gym = gym_result.scalar_one_or_none()
         if gym is None:
-            raise AuthError("Invalid credentials")
+            raise AuthError("Credenciales inválidas")
         query = query.where(User.gym_id == gym.id)
         await set_rls_context(db, gym_id=gym.id, is_superadmin=False)
     else:
@@ -39,10 +39,10 @@ async def authenticate_user(
     user = result.scalar_one_or_none()
 
     if user is None or not verify_password(password, user.password_hash):
-        raise AuthError("Invalid credentials")
+        raise AuthError("Credenciales inválidas")
 
     if not user.is_active:
-        raise AuthError("User is inactive")
+        raise AuthError("El usuario está inactivo")
 
     return user
 
@@ -62,10 +62,10 @@ async def refresh_access_token(db: AsyncSession, *, refresh_token: str) -> Token
         raw_payload = decode_token(refresh_token)
         payload = TokenPayload.model_validate(raw_payload)
     except (ValueError, ValidationError) as exc:
-        raise AuthError("Invalid or expired refresh token") from exc
+        raise AuthError("Token de actualización inválido o expirado") from exc
 
     if payload.type != TokenType.REFRESH.value:
-        raise AuthError("Invalid token type")
+        raise AuthError("Tipo de token inválido")
 
     await set_rls_context(db, gym_id=payload.gym_id, is_superadmin=payload.gym_id is None)
 
@@ -73,13 +73,13 @@ async def refresh_access_token(db: AsyncSession, *, refresh_token: str) -> Token
     user = result.scalar_one_or_none()
 
     if user is None or not user.is_active:
-        raise AuthError("User not found or inactive")
+        raise AuthError("Usuario no encontrado o inactivo")
 
     if payload.gym_id != user.gym_id:
-        raise AuthError("Refresh token no longer valid for this user")
+        raise AuthError("El token de actualización ya no es válido para este usuario")
 
     if payload.tv != user.token_version:
-        raise AuthError("Refresh token has been revoked")
+        raise AuthError("El token de actualización ha sido revocado")
 
     # Rotation: bumping the version invalidates the refresh token that was
     # just used (and any other token issued before this point) the instant

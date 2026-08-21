@@ -34,6 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ApiError } from "@/lib/api-client"
+import { PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_TYPE_LABELS } from "@/lib/labels"
 import type { PaymentMethod, PaymentStatus, PaymentType } from "@/lib/types"
 import { useCreatePayment, usePayments, useRevenueSummary } from "@/hooks/use-payments"
 import { useUsers } from "@/hooks/use-users"
@@ -85,7 +86,7 @@ export default function PaymentsPage() {
       { ...values, user_id: values.user_id || undefined },
       {
         onSuccess: () => {
-          toast.success("Payment recorded")
+          toast.success("Pago registrado")
           form.reset({
             user_id: undefined,
             payment_type: "MEMBERSHIP",
@@ -95,7 +96,7 @@ export default function PaymentsPage() {
           })
         },
         onError: (error) => {
-          toast.error(error instanceof ApiError ? error.detail : "Could not record payment")
+          toast.error(error instanceof ApiError ? error.detail : "No se pudo registrar el pago")
         },
       }
     )
@@ -104,9 +105,9 @@ export default function PaymentsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Payments & POS</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Pagos y punto de venta</h1>
         <Card className="px-4 py-2">
-          <p className="text-xs text-muted-foreground">Total revenue</p>
+          <p className="text-xs text-muted-foreground">Ingresos totales</p>
           <p className="text-xl font-semibold">
             {revenue ? formatCurrency(revenue.total_revenue) : "—"}
           </p>
@@ -116,7 +117,7 @@ export default function PaymentsPage() {
       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Record a sale</CardTitle>
+            <CardTitle>Registrar una venta</CardTitle>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -126,11 +127,11 @@ export default function PaymentsPage() {
                   name="user_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Member (optional)</FormLabel>
+                      <FormLabel>Miembro (opcional)</FormLabel>
                       <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
                           <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Walk-in / retail" />
+                            <SelectValue placeholder="Venta directa / tienda" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -150,7 +151,7 @@ export default function PaymentsPage() {
                   name="payment_type"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Type</FormLabel>
+                      <FormLabel>Tipo</FormLabel>
                       <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
                           <SelectTrigger className="w-full">
@@ -160,7 +161,7 @@ export default function PaymentsPage() {
                         <SelectContent>
                           {PAYMENT_TYPES.map((t) => (
                             <SelectItem key={t} value={t}>
-                              {t}
+                              {PAYMENT_TYPE_LABELS[t]}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -174,7 +175,7 @@ export default function PaymentsPage() {
                   name="payment_method"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Method</FormLabel>
+                      <FormLabel>Método</FormLabel>
                       <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
                           <SelectTrigger className="w-full">
@@ -184,7 +185,7 @@ export default function PaymentsPage() {
                         <SelectContent>
                           {PAYMENT_METHODS.map((m) => (
                             <SelectItem key={m} value={m}>
-                              {m}
+                              {PAYMENT_METHOD_LABELS[m]}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -198,7 +199,7 @@ export default function PaymentsPage() {
                   name="amount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Amount (USD)</FormLabel>
+                      <FormLabel>Monto (USD)</FormLabel>
                       <FormControl>
                         <Input type="number" step="0.01" {...field} value={field.value as number} />
                       </FormControl>
@@ -211,16 +212,16 @@ export default function PaymentsPage() {
                   name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Description (optional)</FormLabel>
+                      <FormLabel>Descripción (opcional)</FormLabel>
                       <FormControl>
-                        <Input placeholder="Protein shake, annual renewal…" {...field} />
+                        <Input placeholder="Batido de proteína, renovación anual…" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 <Button type="submit" disabled={createPayment.isPending}>
-                  {createPayment.isPending ? "Recording…" : "Record payment"}
+                  {createPayment.isPending ? "Registrando…" : "Registrar pago"}
                 </Button>
               </form>
             </Form>
@@ -229,7 +230,7 @@ export default function PaymentsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent transactions</CardTitle>
+            <CardTitle>Transacciones recientes</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -242,11 +243,11 @@ export default function PaymentsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Método</TableHead>
+                    <TableHead>Monto</TableHead>
+                    <TableHead>Estado</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -255,18 +256,22 @@ export default function PaymentsPage() {
                       <TableCell className="text-muted-foreground">
                         {new Date(p.created_at).toLocaleDateString()}
                       </TableCell>
-                      <TableCell>{p.payment_type}</TableCell>
-                      <TableCell className="text-muted-foreground">{p.payment_method}</TableCell>
+                      <TableCell>{PAYMENT_TYPE_LABELS[p.payment_type]}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {PAYMENT_METHOD_LABELS[p.payment_method]}
+                      </TableCell>
                       <TableCell className="font-medium">{formatCurrency(p.amount)}</TableCell>
                       <TableCell>
-                        <Badge variant={statusVariant(p.status)}>{p.status}</Badge>
+                        <Badge variant={statusVariant(p.status)}>
+                          {PAYMENT_STATUS_LABELS[p.status]}
+                        </Badge>
                       </TableCell>
                     </TableRow>
                   ))}
                   {(payments?.items?.length ?? 0) === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        No transactions yet.
+                        Todavía no hay transacciones.
                       </TableCell>
                     </TableRow>
                   )}

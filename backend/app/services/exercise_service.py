@@ -32,7 +32,7 @@ async def get_exercise(
     result = await db.execute(query)
     exercise = result.scalar_one_or_none()
     if exercise is None:
-        raise ExerciseNotFoundError("Exercise not found")
+        raise ExerciseNotFoundError("Ejercicio no encontrado")
     return exercise
 
 
@@ -67,7 +67,7 @@ async def _get_owned_exercise(
     )
     exercise = result.scalar_one_or_none()
     if exercise is None:
-        raise ExerciseNotFoundError("Exercise not found")
+        raise ExerciseNotFoundError("Ejercicio no encontrado")
     return exercise
 
 

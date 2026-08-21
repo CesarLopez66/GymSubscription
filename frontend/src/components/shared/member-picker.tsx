@@ -12,7 +12,7 @@ import { useUsers } from "@/hooks/use-users"
 export function MemberPicker({
   value,
   onChange,
-  placeholder = "Select a member",
+  placeholder = "Selecciona un miembro",
 }: {
   value: string
   onChange: (userId: string) => void
@@ -23,7 +23,7 @@ export function MemberPicker({
   return (
     <Select value={value} onValueChange={(v) => onChange(v ?? "")}>
       <SelectTrigger className="w-full sm:w-80">
-        <SelectValue placeholder={isLoading ? "Loading members…" : placeholder} />
+        <SelectValue placeholder={isLoading ? "Cargando miembros…" : placeholder} />
       </SelectTrigger>
       <SelectContent>
         {(members?.items ?? []).map((m) => (

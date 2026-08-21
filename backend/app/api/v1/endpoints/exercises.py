@@ -26,7 +26,7 @@ def _catalog_scope(current_user: User) -> uuid.UUID | None:
     if current_user.gym_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This action requires a user assigned to a gym",
+            detail="Esta acción requiere un usuario asignado a un gimnasio",
         )
     return current_user.gym_id
 
@@ -38,7 +38,7 @@ async def create_exercise(
     current_user: User = Depends(get_current_active_user),
 ) -> ExerciseRead:
     if current_user.role not in MUTATION_ROLES:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
     gym_id = _catalog_scope(current_user)
     exercise = await exercise_service.create_exercise(db, gym_id, payload)
     return ExerciseRead.model_validate(exercise)
@@ -82,7 +82,7 @@ async def update_exercise(
     current_user: User = Depends(get_current_active_user),
 ) -> ExerciseRead:
     if current_user.role not in MUTATION_ROLES:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
     gym_id = _catalog_scope(current_user)
     try:
         exercise = await exercise_service.update_exercise(db, gym_id, exercise_id, payload)
@@ -98,7 +98,7 @@ async def delete_exercise(
     current_user: User = Depends(get_current_active_user),
 ) -> None:
     if current_user.role not in MUTATION_ROLES:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
     gym_id = _catalog_scope(current_user)
     try:
         await exercise_service.delete_exercise(db, gym_id, exercise_id)

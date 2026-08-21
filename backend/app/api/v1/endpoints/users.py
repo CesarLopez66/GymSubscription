@@ -35,7 +35,7 @@ async def create_user(
 ) -> UserRead:
     if payload.role not in STAFF_MANAGED_ROLES:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid role for gym-scoped user"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Rol inválido para un usuario del gimnasio"
         )
     try:
         user = await user_service.create_user(db, gym_id, payload)
@@ -71,7 +71,7 @@ async def get_user(
     current_user: User = Depends(get_current_active_user),
 ) -> UserRead:
     if current_user.role == UserRole.MEMBER and current_user.id != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
     try:
         user = await user_service.get_user(db, gym_id, user_id)
     except UserNotFoundError as exc:
@@ -88,10 +88,10 @@ async def update_user(
     current_user: User = Depends(get_current_active_user),
 ) -> UserRead:
     if current_user.role not in {UserRole.GYM_ADMIN} and current_user.id != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
     if current_user.role != UserRole.GYM_ADMIN and payload.is_active is not None:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Only a gym admin can change account status"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Solo un administrador de gimnasio puede cambiar el estado de la cuenta"
         )
     try:
         user = await user_service.update_user(db, gym_id, user_id, payload)
@@ -109,7 +109,7 @@ async def change_password(
     current_user: User = Depends(get_current_active_user),
 ) -> TokenPair:
     if current_user.id != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
     try:
         user = await user_service.change_password(db, gym_id, user_id, payload)
     except UserNotFoundError as exc:

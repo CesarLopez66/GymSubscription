@@ -27,7 +27,7 @@ async def create_payment(
             select(User).where(User.id == data.user_id, User.gym_id == gym_id)
         )
         if user_result.scalar_one_or_none() is None:
-            raise InvalidPaymentReferenceError("Member not found in this gym")
+            raise InvalidPaymentReferenceError("Miembro no encontrado en este gimnasio")
 
     if data.subscription_id is not None:
         sub_result = await db.execute(
@@ -37,7 +37,7 @@ async def create_payment(
             )
         )
         if sub_result.scalar_one_or_none() is None:
-            raise InvalidPaymentReferenceError("Subscription not found in this gym")
+            raise InvalidPaymentReferenceError("Suscripción no encontrada en este gimnasio")
 
     payment = Payment(gym_id=gym_id, processed_by_id=processed_by_id, **data.model_dump())
     db.add(payment)
@@ -52,7 +52,7 @@ async def get_payment(db: AsyncSession, gym_id: uuid.UUID, payment_id: uuid.UUID
     )
     payment = result.scalar_one_or_none()
     if payment is None:
-        raise PaymentNotFoundError("Payment not found")
+        raise PaymentNotFoundError("Pago no encontrado")
     return payment
 
 

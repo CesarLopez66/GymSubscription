@@ -24,7 +24,7 @@ async def create_evaluation(
         select(User).where(User.id == data.user_id, User.gym_id == gym_id)
     )
     if member_result.scalar_one_or_none() is None:
-        raise InvalidEvaluationMemberError("Member not found in this gym")
+        raise InvalidEvaluationMemberError("Miembro no encontrado en este gimnasio")
 
     evaluation = PhysicalEvaluation(
         gym_id=gym_id,
@@ -47,7 +47,7 @@ async def get_evaluation(
     )
     evaluation = result.scalar_one_or_none()
     if evaluation is None:
-        raise EvaluationNotFoundError("Physical evaluation not found")
+        raise EvaluationNotFoundError("Evaluación física no encontrada")
     return evaluation
 
 

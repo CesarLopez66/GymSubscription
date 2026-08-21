@@ -28,9 +28,9 @@ async def _verify_check_in(
 ) -> CheckInRead:
     target_user_id = payload.user_id
     if current_user.role == UserRole.MEMBER and target_user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
     if current_user.role not in {UserRole.MEMBER, UserRole.GYM_ADMIN, UserRole.TRAINER}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
     try:
         result = await checkin_service.perform_check_in(db, gym_id=gym_id, user_id=target_user_id)
@@ -84,7 +84,7 @@ async def list_check_ins(
     if current_user.role == UserRole.MEMBER:
         user_id = current_user.id
     elif current_user.role not in {UserRole.GYM_ADMIN, UserRole.TRAINER}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
     check_ins, total = await checkin_service.list_check_ins(db, gym_id, pagination, user_id=user_id)
 

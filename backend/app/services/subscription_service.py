@@ -28,7 +28,7 @@ async def create_subscription(
         select(User).where(User.id == data.user_id, User.gym_id == gym_id)
     )
     if member_result.scalar_one_or_none() is None:
-        raise InvalidSubscriptionMemberError("Member not found in this gym")
+        raise InvalidSubscriptionMemberError("Miembro no encontrado en este gimnasio")
 
     membership = await get_membership(db, gym_id, data.membership_id)
 
@@ -62,7 +62,7 @@ async def get_subscription(
     )
     subscription = result.scalar_one_or_none()
     if subscription is None:
-        raise SubscriptionNotFoundError("Subscription not found")
+        raise SubscriptionNotFoundError("Suscripción no encontrada")
     return subscription
 
 

@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError } from "@/lib/api-client"
+import { GYM_STATUS_LABELS, PLAN_TIER_LABELS } from "@/lib/labels"
 import type { GymStatus, SaaSPlanTier } from "@/lib/types"
 import { useCreateGym, useGyms, useUpdateGym } from "@/hooks/use-gyms"
 
@@ -52,7 +53,7 @@ const gymSchema = z.object({
   subdomain: z
     .string()
     .min(2)
-    .regex(/^[a-z0-9-]+$/, "Lowercase letters, numbers and hyphens only"),
+    .regex(/^[a-z0-9-]+$/, "Solo minúsculas, números y guiones"),
   contact_email: z.string().email(),
   contact_phone: z.string().optional(),
   address: z.string().optional(),
@@ -91,12 +92,12 @@ export default function SuperAdminPage() {
   const onSubmit = (values: GymFormValues) => {
     createGym.mutate(values, {
       onSuccess: () => {
-        toast.success(`${values.name} created`)
+        toast.success(`${values.name} creado`)
         form.reset()
         setOpen(false)
       },
       onError: (error) => {
-        toast.error(error instanceof ApiError ? error.detail : "Could not create gym")
+        toast.error(error instanceof ApiError ? error.detail : "No se pudo crear el gimnasio")
       },
     })
   }
@@ -111,20 +112,22 @@ export default function SuperAdminPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total gyms
+              Total de gimnasios
             </CardTitle>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">{data?.total ?? "—"}</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Activos</CardTitle>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">{activeCount}</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">On trial</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              En prueba
+            </CardTitle>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">{trialCount}</CardContent>
         </Card>
@@ -132,15 +135,15 @@ export default function SuperAdminPage() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Gym tenants</CardTitle>
+          <CardTitle>Gimnasios (tenants)</CardTitle>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger render={<Button size="sm" />}>
               <Plus className="size-4" />
-              New gym
+              Nuevo gimnasio
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Create gym tenant</DialogTitle>
+                <DialogTitle>Crear gimnasio</DialogTitle>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
@@ -149,7 +152,7 @@ export default function SuperAdminPage() {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Name</FormLabel>
+                        <FormLabel>Nombre</FormLabel>
                         <FormControl>
                           <Input placeholder="Acme Fitness" {...field} />
                         </FormControl>
@@ -162,7 +165,7 @@ export default function SuperAdminPage() {
                     name="subdomain"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Subdomain</FormLabel>
+                        <FormLabel>Subdominio</FormLabel>
                         <FormControl>
                           <Input placeholder="acme" {...field} />
                         </FormControl>
@@ -175,7 +178,7 @@ export default function SuperAdminPage() {
                     name="contact_email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Contact email</FormLabel>
+                        <FormLabel>Correo de contacto</FormLabel>
                         <FormControl>
                           <Input type="email" placeholder="owner@acme.com" {...field} />
                         </FormControl>
@@ -188,9 +191,9 @@ export default function SuperAdminPage() {
                     name="contact_phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Contact phone</FormLabel>
+                        <FormLabel>Teléfono de contacto</FormLabel>
                         <FormControl>
-                          <Input placeholder="Optional" {...field} />
+                          <Input placeholder="Opcional" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -201,7 +204,7 @@ export default function SuperAdminPage() {
                     name="plan_tier"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Plan tier</FormLabel>
+                        <FormLabel>Plan</FormLabel>
                         <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
                             <SelectTrigger className="w-full">
@@ -211,7 +214,7 @@ export default function SuperAdminPage() {
                           <SelectContent>
                             {PLAN_TIERS.map((tier) => (
                               <SelectItem key={tier} value={tier}>
-                                {tier}
+                                {PLAN_TIER_LABELS[tier]}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -222,7 +225,7 @@ export default function SuperAdminPage() {
                   />
                   <DialogFooter>
                     <Button type="submit" disabled={createGym.isPending}>
-                      {createGym.isPending ? "Creating…" : "Create gym"}
+                      {createGym.isPending ? "Creando…" : "Crear gimnasio"}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -241,11 +244,11 @@ export default function SuperAdminPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Subdomain</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Subdominio</TableHead>
+                  <TableHead>Estado</TableHead>
                   <TableHead>Plan</TableHead>
-                  <TableHead>Contact</TableHead>
+                  <TableHead>Contacto</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -262,19 +265,23 @@ export default function SuperAdminPage() {
                             {
                               onError: (error) =>
                                 toast.error(
-                                  error instanceof ApiError ? error.detail : "Update failed"
+                                  error instanceof ApiError
+                                    ? error.detail
+                                    : "No se pudo actualizar"
                                 ),
                             }
                           )
                         }
                       >
                         <SelectTrigger size="sm" className="w-28">
-                          <Badge variant={statusVariant(gym.status)}>{gym.status}</Badge>
+                          <Badge variant={statusVariant(gym.status)}>
+                            {GYM_STATUS_LABELS[gym.status]}
+                          </Badge>
                         </SelectTrigger>
                         <SelectContent>
                           {GYM_STATUSES.map((status) => (
                             <SelectItem key={status} value={status}>
-                              {status}
+                              {GYM_STATUS_LABELS[status]}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -289,7 +296,9 @@ export default function SuperAdminPage() {
                             {
                               onError: (error) =>
                                 toast.error(
-                                  error instanceof ApiError ? error.detail : "Update failed"
+                                  error instanceof ApiError
+                                    ? error.detail
+                                    : "No se pudo actualizar"
                                 ),
                             }
                           )
@@ -301,7 +310,7 @@ export default function SuperAdminPage() {
                         <SelectContent>
                           {PLAN_TIERS.map((tier) => (
                             <SelectItem key={tier} value={tier}>
-                              {tier}
+                              {PLAN_TIER_LABELS[tier]}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -313,7 +322,7 @@ export default function SuperAdminPage() {
                 {gyms.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      No gyms yet.
+                      Todavía no hay gimnasios.
                     </TableCell>
                   </TableRow>
                 )}

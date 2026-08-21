@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/table"
 import { MemberPicker } from "@/components/shared/member-picker"
 import { ApiError } from "@/lib/api-client"
+import { DAY_LABELS_SHORT, FITNESS_GOAL_LABELS } from "@/lib/labels"
 import type { DayOfWeek, FitnessGoal } from "@/lib/types"
 import { useExercises } from "@/hooks/use-exercises"
 import { useAssignWorkoutPlan, useWorkoutPlans } from "@/hooks/use-workouts"
@@ -52,7 +53,7 @@ const DAYS: DayOfWeek[] = [
 ]
 
 const itemSchema = z.object({
-  exercise_id: z.string().min(1, "Pick an exercise"),
+  exercise_id: z.string().min(1, "Elige un ejercicio"),
   day_of_week: z.enum(DAYS as [DayOfWeek, ...DayOfWeek[]]),
   sets: z.coerce.number().int().positive().max(50),
   reps: z.coerce.number().int().positive().max(200),
@@ -64,7 +65,7 @@ const planSchema = z.object({
   name: z.string().min(1),
   fitness_goal: z.enum(["FAT_LOSS", "MUSCLE_GAIN", "MAINTENANCE", "REHAB"]),
   start_date: z.string().min(1),
-  items: z.array(itemSchema).min(1, "Add at least one exercise"),
+  items: z.array(itemSchema).min(1, "Agrega al menos un ejercicio"),
 })
 
 type PlanFormValues = z.infer<typeof planSchema>
@@ -92,7 +93,7 @@ export default function WorkoutBuilderPage() {
 
   const onSubmit = (values: PlanFormValues) => {
     if (!memberId) {
-      toast.error("Select a member first")
+      toast.error("Selecciona un miembro primero")
       return
     }
     assignPlan.mutate(
@@ -105,7 +106,7 @@ export default function WorkoutBuilderPage() {
       },
       {
         onSuccess: () => {
-          toast.success(`${values.name} assigned`)
+          toast.success(`${values.name} asignada`)
           form.reset({
             name: "",
             fitness_goal: "MUSCLE_GAIN",
@@ -114,21 +115,21 @@ export default function WorkoutBuilderPage() {
           })
         },
         onError: (error) =>
-          toast.error(error instanceof ApiError ? error.detail : "Could not assign plan"),
+          toast.error(error instanceof ApiError ? error.detail : "No se pudo asignar la rutina"),
       }
     )
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Workout builder</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Constructor de rutinas</h1>
       <MemberPicker value={memberId} onChange={setMemberId} />
 
       {memberId && (
         <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
           <Card>
             <CardHeader>
-              <CardTitle>New routine</CardTitle>
+              <CardTitle>Nueva rutina</CardTitle>
             </CardHeader>
             <CardContent>
               <Form {...form}>
@@ -139,9 +140,9 @@ export default function WorkoutBuilderPage() {
                       name="name"
                       render={({ field }) => (
                         <FormItem className="sm:col-span-1">
-                          <FormLabel>Plan name</FormLabel>
+                          <FormLabel>Nombre de la rutina</FormLabel>
                           <FormControl>
-                            <Input placeholder="Push/Pull/Legs" {...field} />
+                            <Input placeholder="Empuje/Jalón/Pierna" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -152,7 +153,7 @@ export default function WorkoutBuilderPage() {
                       name="fitness_goal"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Goal</FormLabel>
+                          <FormLabel>Objetivo</FormLabel>
                           <Select value={field.value} onValueChange={field.onChange}>
                             <FormControl>
                               <SelectTrigger className="w-full">
@@ -162,7 +163,7 @@ export default function WorkoutBuilderPage() {
                             <SelectContent>
                               {FITNESS_GOALS.map((g) => (
                                 <SelectItem key={g} value={g}>
-                                  {g}
+                                  {FITNESS_GOAL_LABELS[g]}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -176,7 +177,7 @@ export default function WorkoutBuilderPage() {
                       name="start_date"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Start date</FormLabel>
+                          <FormLabel>Fecha de inicio</FormLabel>
                           <FormControl>
                             <Input type="date" {...field} />
                           </FormControl>
@@ -188,7 +189,7 @@ export default function WorkoutBuilderPage() {
 
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium">Exercises</p>
+                      <p className="text-sm font-medium">Ejercicios</p>
                       <Button
                         type="button"
                         variant="outline"
@@ -203,7 +204,7 @@ export default function WorkoutBuilderPage() {
                         }
                       >
                         <Plus className="size-4" />
-                        Add exercise
+                        Agregar ejercicio
                       </Button>
                     </div>
 
@@ -217,7 +218,7 @@ export default function WorkoutBuilderPage() {
                             type="button"
                             onClick={() => index > 0 && move(index, index - 1)}
                             className="hover:text-foreground"
-                            title="Move up"
+                            title="Mover arriba"
                           >
                             <GripVertical className="size-4" />
                           </button>
@@ -228,11 +229,11 @@ export default function WorkoutBuilderPage() {
                             name={`items.${index}.exercise_id`}
                             render={({ field }) => (
                               <FormItem className="col-span-2 sm:col-span-2">
-                                <FormLabel className="text-xs">Exercise</FormLabel>
+                                <FormLabel className="text-xs">Ejercicio</FormLabel>
                                 <Select value={field.value} onValueChange={field.onChange}>
                                   <FormControl>
                                     <SelectTrigger className="w-full">
-                                      <SelectValue placeholder="Choose" />
+                                      <SelectValue placeholder="Elegir" />
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
@@ -252,7 +253,7 @@ export default function WorkoutBuilderPage() {
                             name={`items.${index}.day_of_week`}
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-xs">Day</FormLabel>
+                                <FormLabel className="text-xs">Día</FormLabel>
                                 <Select value={field.value} onValueChange={field.onChange}>
                                   <FormControl>
                                     <SelectTrigger className="w-full">
@@ -262,7 +263,7 @@ export default function WorkoutBuilderPage() {
                                   <SelectContent>
                                     {DAYS.map((d) => (
                                       <SelectItem key={d} value={d}>
-                                        {d.slice(0, 3)}
+                                        {DAY_LABELS_SHORT[d]}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -275,7 +276,7 @@ export default function WorkoutBuilderPage() {
                             name={`items.${index}.sets`}
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-xs">Sets</FormLabel>
+                                <FormLabel className="text-xs">Series</FormLabel>
                                 <FormControl>
                                   <Input type="number" {...field} value={field.value as number} />
                                 </FormControl>
@@ -287,7 +288,7 @@ export default function WorkoutBuilderPage() {
                             name={`items.${index}.reps`}
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-xs">Reps</FormLabel>
+                                <FormLabel className="text-xs">Repeticiones</FormLabel>
                                 <FormControl>
                                   <Input type="number" {...field} value={field.value as number} />
                                 </FormControl>
@@ -313,7 +314,7 @@ export default function WorkoutBuilderPage() {
                   </div>
 
                   <Button type="submit" disabled={assignPlan.isPending}>
-                    {assignPlan.isPending ? "Assigning…" : "Assign routine"}
+                    {assignPlan.isPending ? "Asignando…" : "Asignar rutina"}
                   </Button>
                 </form>
               </Form>
@@ -322,7 +323,7 @@ export default function WorkoutBuilderPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Existing plans</CardTitle>
+              <CardTitle>Rutinas existentes</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {(plans?.items ?? []).map((plan) => (
@@ -330,21 +331,23 @@ export default function WorkoutBuilderPage() {
                   <div className="flex items-center justify-between">
                     <p className="font-medium">{plan.name}</p>
                     <Badge variant={plan.is_active ? "default" : "secondary"}>
-                      {plan.is_active ? "Active" : "Inactive"}
+                      {plan.is_active ? "Activa" : "Inactiva"}
                     </Badge>
                   </div>
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="text-xs">Day</TableHead>
-                        <TableHead className="text-xs">Exercise</TableHead>
-                        <TableHead className="text-xs">Sets×Reps</TableHead>
+                        <TableHead className="text-xs">Día</TableHead>
+                        <TableHead className="text-xs">Ejercicio</TableHead>
+                        <TableHead className="text-xs">Series×Reps</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {plan.items.map((item) => (
                         <TableRow key={item.id}>
-                          <TableCell className="text-xs">{item.day_of_week.slice(0, 3)}</TableCell>
+                          <TableCell className="text-xs">
+                            {DAY_LABELS_SHORT[item.day_of_week]}
+                          </TableCell>
                           <TableCell className="text-xs">{item.exercise.name}</TableCell>
                           <TableCell className="text-xs">
                             {item.sets}×{item.reps}
@@ -356,7 +359,7 @@ export default function WorkoutBuilderPage() {
                 </div>
               ))}
               {(plans?.items?.length ?? 0) === 0 && (
-                <p className="text-sm text-muted-foreground">No routines yet.</p>
+                <p className="text-sm text-muted-foreground">Todavía no hay rutinas.</p>
               )}
             </CardContent>
           </Card>

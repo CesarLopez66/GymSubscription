@@ -19,24 +19,24 @@ export default function DashboardOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Resumen</h1>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Members</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Miembros</CardTitle>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">{members?.total ?? "—"}</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Trainers</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Entrenadores</CardTitle>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">{trainers?.total ?? "—"}</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total revenue
+              Ingresos totales
             </CardTitle>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
@@ -46,7 +46,7 @@ export default function DashboardOverviewPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Recent denied check-ins
+              Check-ins denegados recientes
             </CardTitle>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">{deniedToday}</CardContent>

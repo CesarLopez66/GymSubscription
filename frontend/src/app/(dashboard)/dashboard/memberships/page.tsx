@@ -63,12 +63,12 @@ export default function MembershipsPage() {
   const onSubmit = (values: MembershipFormValues) => {
     createMembership.mutate(values, {
       onSuccess: () => {
-        toast.success(`${values.name} plan created`)
+        toast.success(`Plan ${values.name} creado`)
         form.reset()
         setOpen(false)
       },
       onError: (error) => {
-        toast.error(error instanceof ApiError ? error.detail : "Could not create plan")
+        toast.error(error instanceof ApiError ? error.detail : "No se pudo crear el plan")
       },
     })
   }
@@ -78,15 +78,15 @@ export default function MembershipsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Membership plans</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Planes de membresía</h1>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger render={<Button size="sm" />}>
             <Plus className="size-4" />
-            New plan
+            Nuevo plan
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create membership plan</DialogTitle>
+              <DialogTitle>Crear plan de membresía</DialogTitle>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
@@ -95,9 +95,9 @@ export default function MembershipsPage() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name</FormLabel>
+                      <FormLabel>Nombre</FormLabel>
                       <FormControl>
-                        <Input placeholder="Monthly" {...field} />
+                        <Input placeholder="Mensual" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -108,7 +108,7 @@ export default function MembershipsPage() {
                   name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Description</FormLabel>
+                      <FormLabel>Descripción</FormLabel>
                       <FormControl>
                         <Textarea {...field} />
                       </FormControl>
@@ -122,7 +122,7 @@ export default function MembershipsPage() {
                     name="price"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Price (USD)</FormLabel>
+                        <FormLabel>Precio (USD)</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
@@ -140,7 +140,7 @@ export default function MembershipsPage() {
                     name="duration_days"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Duration (days)</FormLabel>
+                        <FormLabel>Duración (días)</FormLabel>
                         <FormControl>
                           <Input type="number" {...field} value={field.value as number} />
                         </FormControl>
@@ -151,7 +151,7 @@ export default function MembershipsPage() {
                 </div>
                 <DialogFooter>
                   <Button type="submit" disabled={createMembership.isPending}>
-                    {createMembership.isPending ? "Creating…" : "Create plan"}
+                    {createMembership.isPending ? "Creando…" : "Crear plan"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -162,7 +162,7 @@ export default function MembershipsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Plans ({data?.total ?? 0})</CardTitle>
+          <CardTitle>Planes ({data?.total ?? 0})</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -175,11 +175,11 @@ export default function MembershipsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Precio</TableHead>
+                  <TableHead>Duración</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -188,11 +188,11 @@ export default function MembershipsPage() {
                     <TableCell className="font-medium">{plan.name}</TableCell>
                     <TableCell>${Number(plan.price).toFixed(2)}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {plan.duration_days} days
+                      {plan.duration_days} días
                     </TableCell>
                     <TableCell>
                       <Badge variant={plan.is_active ? "default" : "secondary"}>
-                        {plan.is_active ? "Active" : "Inactive"}
+                        {plan.is_active ? "Activo" : "Inactivo"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -206,7 +206,7 @@ export default function MembershipsPage() {
                           })
                         }
                       >
-                        {plan.is_active ? "Deactivate" : "Reactivate"}
+                        {plan.is_active ? "Desactivar" : "Reactivar"}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -214,7 +214,7 @@ export default function MembershipsPage() {
                 {plans.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      No plans yet.
+                      Todavía no hay planes.
                     </TableCell>
                   </TableRow>
                 )}

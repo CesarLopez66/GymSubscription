@@ -54,7 +54,7 @@ async def list_workout_plans(
     if current_user.role == UserRole.MEMBER:
         user_id = current_user.id
     elif current_user.role not in {UserRole.GYM_ADMIN, UserRole.TRAINER, UserRole.NUTRITIONIST}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
     plans, total = await workout_service.list_workout_plans(db, gym_id, pagination, user_id=user_id)
     return Page.create(
@@ -78,7 +78,7 @@ async def get_workout_plan(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     if current_user.role == UserRole.MEMBER and plan.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
     return WorkoutPlanRead.model_validate(plan)
 

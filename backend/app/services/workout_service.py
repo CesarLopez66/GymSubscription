@@ -37,7 +37,7 @@ async def _validate_exercise_ids(
     found_ids = set(result.scalars().all())
     missing = exercise_ids - found_ids
     if missing:
-        raise InvalidWorkoutExerciseError(f"Exercises not found: {', '.join(str(m) for m in missing)}")
+        raise InvalidWorkoutExerciseError(f"Ejercicios no encontrados: {', '.join(str(m) for m in missing)}")
 
 
 async def create_workout_plan(
@@ -47,7 +47,7 @@ async def create_workout_plan(
         select(User).where(User.id == data.user_id, User.gym_id == gym_id)
     )
     if member_result.scalar_one_or_none() is None:
-        raise InvalidWorkoutMemberError("Member not found in this gym")
+        raise InvalidWorkoutMemberError("Miembro no encontrado en este gimnasio")
 
     await _validate_exercise_ids(db, gym_id, {item.exercise_id for item in data.items})
 
@@ -75,7 +75,7 @@ async def get_workout_plan(db: AsyncSession, gym_id: uuid.UUID, plan_id: uuid.UU
     )
     plan = result.scalar_one_or_none()
     if plan is None:
-        raise WorkoutPlanNotFoundError("Workout plan not found")
+        raise WorkoutPlanNotFoundError("Rutina no encontrada")
     return plan
 
 

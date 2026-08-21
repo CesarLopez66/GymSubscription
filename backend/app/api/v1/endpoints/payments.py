@@ -43,7 +43,7 @@ async def list_payments(
     if current_user.role == UserRole.MEMBER:
         user_id = current_user.id
     elif current_user.role != UserRole.GYM_ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
     payments, total = await payment_service.list_payments(db, gym_id, pagination, user_id=user_id)
     return Page.create(
@@ -76,7 +76,7 @@ async def get_payment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     if current_user.role == UserRole.MEMBER and payment.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
     return PaymentRead.model_validate(payment)
 

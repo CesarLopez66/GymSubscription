@@ -141,7 +141,7 @@ class TestWorkoutTemplateSelection:
             fitness_goal=FitnessGoal.REHAB, activity_level=ActivityLevel.SEDENTARY
         )
         assert template.sessions_per_week <= 3
-        assert "mobility" in " ".join(template.focus_areas).lower()
+        assert "movilidad" in " ".join(template.focus_areas).lower()
 
     @pytest.mark.parametrize("goal", list(FitnessGoal))
     @pytest.mark.parametrize("level", list(ActivityLevel))

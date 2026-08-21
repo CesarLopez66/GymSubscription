@@ -33,13 +33,13 @@ async def _resolve_access(db: AsyncSession, *, gym_id: uuid.UUID, user_id: uuid.
     user_result = await db.execute(select(User).where(User.id == user_id, User.gym_id == gym_id))
     user = user_result.scalar_one_or_none()
     if user is None:
-        raise CheckInError("Member not found in this gym")
+        raise CheckInError("Miembro no encontrado en este gimnasio")
     return user
 
 
 async def _compute_access(db: AsyncSession, *, gym_id: uuid.UUID, user: User) -> tuple[bool, str | None]:
     if not user.is_active:
-        return False, "Member account is inactive"
+        return False, "La cuenta del miembro está inactiva"
 
     today = date.today()
     subscription_result = await db.execute(
@@ -56,7 +56,7 @@ async def _compute_access(db: AsyncSession, *, gym_id: uuid.UUID, user: User) ->
     active_subscription = subscription_result.scalars().first()
 
     if active_subscription is None:
-        return False, "No active subscription"
+        return False, "No tiene una suscripción activa"
     return True, None
 
 
