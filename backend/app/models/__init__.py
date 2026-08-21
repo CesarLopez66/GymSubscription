@@ -1,0 +1,26 @@
+from app.db.base import Base
+from app.models.checkin import CheckIn
+from app.models.evaluation import PhysicalEvaluation
+from app.models.exercise import Exercise
+from app.models.gym import Gym
+from app.models.membership import Membership
+from app.models.nutrition import NutritionPlan
+from app.models.payment import Payment
+from app.models.subscription import MemberSubscription
+from app.models.user import User
+from app.models.workout import WorkoutPlan, WorkoutPlanItem
+
+__all__ = [
+    "Base",
+    "CheckIn",
+    "PhysicalEvaluation",
+    "Exercise",
+    "Gym",
+    "Membership",
+    "NutritionPlan",
+    "Payment",
+    "MemberSubscription",
+    "User",
+    "WorkoutPlan",
+    "WorkoutPlanItem",
+]

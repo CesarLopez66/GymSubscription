@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: subgym
+      POSTGRES_PASSWORD: subgym
+      POSTGRES_DB: subgym
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U subgym"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      # Runtime connection: a restricted, non-superuser role so RLS actually
+      # applies to it (see backend/db-init/01-create-app-role.sql).
+      DATABASE_URL: postgresql+asyncpg://subgym_app:subgym_app@postgres:5432/subgym
+      # Migrations need table-owner privileges; only docker-entrypoint.sh's
+      # `alembic upgrade head` step uses this.
+      MIGRATION_DATABASE_URL: postgresql+asyncpg://subgym:subgym@postgres:5432/subgym
+      REDIS_URL: redis://redis:6379/0
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-to-a-long-random-secret-value}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      BACKEND_CORS_ORIGINS: '["http://localhost:3000"]'
+      BASE_DOMAIN: ${BASE_DOMAIN:-subgym.io}
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
