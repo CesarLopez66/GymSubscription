@@ -66,7 +66,7 @@ async def list_evaluations(
     total = count_result.scalar_one()
 
     result = await db.execute(
-        base_query.order_by(PhysicalEvaluation.evaluated_at.desc())
+        base_query.order_by(PhysicalEvaluation.evaluated_at.desc(), PhysicalEvaluation.id.desc())
         .offset(pagination.offset)
         .limit(pagination.limit)
     )

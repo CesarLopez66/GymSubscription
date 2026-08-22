@@ -51,7 +51,7 @@ async def _compute_access(db: AsyncSession, *, gym_id: uuid.UUID, user: User) ->
             MemberSubscription.start_date <= today,
             MemberSubscription.end_date >= today,
         )
-        .order_by(MemberSubscription.end_date.desc())
+        .order_by(MemberSubscription.end_date.desc(), MemberSubscription.id.desc())
     )
     active_subscription = subscription_result.scalars().first()
 
@@ -107,7 +107,7 @@ async def list_check_ins(
     total = count_result.scalar_one()
 
     result = await db.execute(
-        base_query.order_by(CheckIn.timestamp.desc())
+        base_query.order_by(CheckIn.timestamp.desc(), CheckIn.id.desc())
         .offset(pagination.offset)
         .limit(pagination.limit)
     )

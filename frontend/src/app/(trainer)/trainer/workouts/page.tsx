@@ -34,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { FadeIn } from "@/components/shared/motion"
 import { MemberPicker } from "@/components/shared/member-picker"
 import { ApiError } from "@/lib/api-client"
 import { DAY_LABELS_SHORT, FITNESS_GOAL_LABELS } from "@/lib/labels"
@@ -122,8 +123,10 @@ export default function WorkoutBuilderPage() {
 
   return (
     <div className="space-y-6">
+      <FadeIn className="space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight">Constructor de rutinas</h1>
       <MemberPicker value={memberId} onChange={setMemberId} />
+      </FadeIn>
 
       {memberId && (
         <div className="grid gap-6 xl:grid-cols-[1fr_360px]">

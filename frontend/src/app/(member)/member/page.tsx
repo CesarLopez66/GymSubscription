@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
+import { FadeIn } from "@/components/shared/motion"
 import { RestTimer } from "@/components/shared/rest-timer"
 import type { DayOfWeek } from "@/lib/types"
 import { useNutritionPlans } from "@/hooks/use-nutrition"
@@ -97,18 +98,25 @@ export default function MemberDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="text-center">
-          <CardTitle>Código QR de acceso</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col items-center gap-2">
-          {user && <QRCodeSVG value={user.id} size={180} />}
-          <p className="text-xs text-muted-foreground">
-            Muestra esto en recepción para hacer check-in
-          </p>
-        </CardContent>
-      </Card>
+      <FadeIn>
+        <Card className="overflow-hidden border-primary/30 bg-gym-radial">
+          <CardHeader className="text-center">
+            <CardTitle>Código QR de acceso</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center gap-3">
+            {user && (
+              <div className="rounded-xl bg-white p-3 shadow-lg shadow-primary/20">
+                <QRCodeSVG value={user.id} size={180} />
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Muestra esto en recepción para hacer check-in
+            </p>
+          </CardContent>
+        </Card>
+      </FadeIn>
 
+      <FadeIn delay={0.08}>
       <Card>
         <CardHeader>
           <CardTitle>Rutina de hoy</CardTitle>
@@ -154,7 +162,9 @@ export default function MemberDashboardPage() {
           ))}
         </CardContent>
       </Card>
+      </FadeIn>
 
+      <FadeIn delay={0.16}>
       <Card>
         <CardHeader>
           <CardTitle>
@@ -228,6 +238,7 @@ export default function MemberDashboardPage() {
           )}
         </CardContent>
       </Card>
+      </FadeIn>
     </div>
   )
 }

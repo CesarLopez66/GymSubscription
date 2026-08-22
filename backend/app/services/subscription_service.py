@@ -81,7 +81,7 @@ async def list_subscriptions(
     total = count_result.scalar_one()
 
     result = await db.execute(
-        base_query.order_by(MemberSubscription.created_at.desc())
+        base_query.order_by(MemberSubscription.created_at.desc(), MemberSubscription.id)
         .offset(pagination.offset)
         .limit(pagination.limit)
     )

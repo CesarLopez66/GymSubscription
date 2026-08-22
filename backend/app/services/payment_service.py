@@ -71,7 +71,7 @@ async def list_payments(
     total = count_result.scalar_one()
 
     result = await db.execute(
-        base_query.order_by(Payment.created_at.desc())
+        base_query.order_by(Payment.created_at.desc(), Payment.id)
         .offset(pagination.offset)
         .limit(pagination.limit)
     )

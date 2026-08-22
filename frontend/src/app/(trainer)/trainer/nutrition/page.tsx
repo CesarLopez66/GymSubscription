@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { FadeIn } from "@/components/shared/motion"
 import { MemberPicker } from "@/components/shared/member-picker"
 import { ApiError } from "@/lib/api-client"
 import { ACTIVITY_LEVEL_LABELS, FITNESS_GOAL_LABELS } from "@/lib/labels"
@@ -99,8 +100,10 @@ export default function NutritionPrescriptorPage() {
 
   return (
     <div className="space-y-6">
+      <FadeIn className="space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight">Prescriptor de macros</h1>
       <MemberPicker value={memberId} onChange={setMemberId} />
+      </FadeIn>
 
       {memberId && (
         <div className="grid gap-6 lg:grid-cols-[380px_1fr]">

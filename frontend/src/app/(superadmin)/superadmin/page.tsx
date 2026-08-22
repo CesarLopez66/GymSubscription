@@ -5,7 +5,8 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { toast } from "sonner"
-import { Plus } from "lucide-react"
+import { motion } from "framer-motion"
+import { Building2, CheckCircle2, Clock, Plus } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -43,6 +44,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
+import { FadeIn } from "@/components/shared/motion"
+import { StatCard } from "@/components/shared/stat-card"
 import { ApiError } from "@/lib/api-client"
 import { GYM_STATUS_LABELS, PLAN_TIER_LABELS } from "@/lib/labels"
 import type { GymStatus, SaaSPlanTier } from "@/lib/types"
@@ -109,30 +112,12 @@ export default function SuperAdminPage() {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total de gimnasios
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold">{data?.total ?? "—"}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Activos</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold">{activeCount}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              En prueba
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold">{trialCount}</CardContent>
-        </Card>
+        <StatCard label="Total de gimnasios" value={data?.total} icon={Building2} delay={0} />
+        <StatCard label="Activos" value={activeCount} icon={CheckCircle2} delay={0.05} />
+        <StatCard label="En prueba" value={trialCount} icon={Clock} delay={0.1} />
       </div>
 
+      <FadeIn delay={0.15}>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Gimnasios (tenants)</CardTitle>
@@ -252,8 +237,14 @@ export default function SuperAdminPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {gyms.map((gym) => (
-                  <TableRow key={gym.id}>
+                {gyms.map((gym, i) => (
+                  <motion.tr
+                    key={gym.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: Math.min(i * 0.03, 0.3) }}
+                    className="border-b transition-colors hover:bg-muted/50"
+                  >
                     <TableCell className="font-medium">{gym.name}</TableCell>
                     <TableCell className="text-muted-foreground">{gym.subdomain}</TableCell>
                     <TableCell>
@@ -317,7 +308,7 @@ export default function SuperAdminPage() {
                       </Select>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{gym.contact_email}</TableCell>
-                  </TableRow>
+                  </motion.tr>
                 ))}
                 {gyms.length === 0 && (
                   <TableRow>
@@ -331,6 +322,7 @@ export default function SuperAdminPage() {
           )}
         </CardContent>
       </Card>
+      </FadeIn>
     </div>
   )
 }

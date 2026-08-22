@@ -95,7 +95,7 @@ async def list_workout_plans(
 
     result = await db.execute(
         base_query.options(selectinload(WorkoutPlan.items).selectinload(WorkoutPlanItem.exercise))
-        .order_by(WorkoutPlan.created_at.desc())
+        .order_by(WorkoutPlan.created_at.desc(), WorkoutPlan.id)
         .offset(pagination.offset)
         .limit(pagination.limit)
     )

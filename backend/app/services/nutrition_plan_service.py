@@ -111,7 +111,7 @@ async def list_nutrition_plans(
     total = count_result.scalar_one()
 
     result = await db.execute(
-        base_query.order_by(NutritionPlan.created_at.desc())
+        base_query.order_by(NutritionPlan.created_at.desc(), NutritionPlan.id)
         .offset(pagination.offset)
         .limit(pagination.limit)
     )

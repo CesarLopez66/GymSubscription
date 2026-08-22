@@ -40,3 +40,20 @@ export function useDeactivateUser() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
   })
 }
+
+export interface UserUpdateInput {
+  first_name?: string
+  last_name?: string
+  phone?: string
+  sex?: Sex
+  is_active?: boolean
+}
+
+export function useUpdateUser() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UserUpdateInput }) =>
+      api.patch<User>(`/users/${id}`, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  })
+}

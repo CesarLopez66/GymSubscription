@@ -49,7 +49,7 @@ async def list_gyms(db: AsyncSession, pagination: PaginationParams) -> tuple[lis
     total = count_result.scalar_one()
 
     result = await db.execute(
-        select(Gym).order_by(Gym.created_at.desc()).offset(pagination.offset).limit(pagination.limit)
+        select(Gym).order_by(Gym.created_at.desc(), Gym.id).offset(pagination.offset).limit(pagination.limit)
     )
     return list(result.scalars().all()), total
 

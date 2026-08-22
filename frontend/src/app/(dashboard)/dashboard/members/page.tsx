@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { toast } from "sonner"
-import { Plus } from "lucide-react"
+import { Plus, RotateCcw, UserX } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -48,10 +48,15 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
+import { motion } from "framer-motion"
+
+import { EditUserDialog } from "@/components/shared/edit-user-dialog"
+import { FadeIn } from "@/components/shared/motion"
+import { SubscriptionDialog } from "@/components/shared/subscription-dialog"
 import { ApiError } from "@/lib/api-client"
 import { ROLE_LABELS } from "@/lib/labels"
 import type { UserRole } from "@/lib/types"
-import { useCreateUser, useDeactivateUser, useUsers } from "@/hooks/use-users"
+import { useCreateUser, useDeactivateUser, useUpdateUser, useUsers } from "@/hooks/use-users"
 
 const ROLES: UserRole[] = ["MEMBER", "TRAINER", "NUTRITIONIST", "GYM_ADMIN"]
 
@@ -72,6 +77,7 @@ export default function MembersPage() {
   const { data, isLoading } = useUsers(roleFilter, 1, 100)
   const createUser = useCreateUser()
   const deactivateUser = useDeactivateUser()
+  const updateUser = useUpdateUser()
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
@@ -98,11 +104,22 @@ export default function MembersPage() {
     })
   }
 
+  const handleReactivate = (userId: string, name: string) => {
+    updateUser.mutate(
+      { id: userId, input: { is_active: true } },
+      {
+        onSuccess: () => toast.success(`${name} reactivado`),
+        onError: (error) =>
+          toast.error(error instanceof ApiError ? error.detail : "No se pudo reactivar"),
+      }
+    )
+  }
+
   const users = data?.items ?? []
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <FadeIn className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Personas</h1>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger render={<Button size="sm" />}>
@@ -215,87 +232,123 @@ export default function MembersPage() {
             </Form>
           </DialogContent>
         </Dialog>
-      </div>
+      </FadeIn>
 
-      <Tabs value={roleFilter} onValueChange={(v) => setRoleFilter(v as UserRole)}>
-        <TabsList>
-          {ROLES.map((role) => (
-            <TabsTrigger key={role} value={role}>
-              {ROLE_LABELS[role]}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <FadeIn delay={0.05}>
+        <Tabs value={roleFilter} onValueChange={(v) => setRoleFilter(v as UserRole)}>
+          <TabsList>
+            {ROLES.map((role) => (
+              <TabsTrigger key={role} value={role}>
+                {ROLE_LABELS[role]}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </FadeIn>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {ROLE_LABELS[roleFilter]}{" "}
-            <span className="text-muted-foreground">({data?.total ?? 0})</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Correo electrónico</TableHead>
-                  <TableHead>Teléfono</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="font-medium">
-                      {u.first_name} {u.last_name}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                    <TableCell className="text-muted-foreground">{u.phone ?? "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant={u.is_active ? "default" : "destructive"}>
-                        {u.is_active ? "Activo" : "Inactivo"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={!u.is_active || deactivateUser.isPending}
-                        onClick={() =>
-                          deactivateUser.mutate(u.id, {
-                            onError: (error) =>
-                              toast.error(
-                                error instanceof ApiError ? error.detail : "La acción falló"
-                              ),
-                          })
-                        }
-                      >
-                        Desactivar
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+      <FadeIn delay={0.1}>
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {ROLE_LABELS[roleFilter]}{" "}
+              <span className="text-muted-foreground">({data?.total ?? 0})</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
                 ))}
-                {users.length === 0 && (
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      Todavía no hay nadie aquí.
-                    </TableCell>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Correo electrónico</TableHead>
+                    <TableHead>Teléfono</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {users.map((u, i) => (
+                    <motion.tr
+                      key={u.id}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.25, delay: Math.min(i * 0.03, 0.3) }}
+                      className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+                    >
+                      <TableCell className="font-medium">
+                        {u.first_name} {u.last_name}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                      <TableCell className="text-muted-foreground">{u.phone ?? "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant={u.is_active ? "default" : "destructive"}>
+                          {u.is_active ? "Activo" : "Inactivo"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {roleFilter === "MEMBER" && (
+                            <SubscriptionDialog
+                              userId={u.id}
+                              memberName={`${u.first_name} ${u.last_name}`}
+                            />
+                          )}
+                          <EditUserDialog user={u} />
+                          {u.is_active ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={deactivateUser.isPending}
+                              onClick={() =>
+                                deactivateUser.mutate(u.id, {
+                                  onError: (error) =>
+                                    toast.error(
+                                      error instanceof ApiError
+                                        ? error.detail
+                                        : "La acción falló"
+                                    ),
+                                })
+                              }
+                            >
+                              <UserX className="size-3.5" />
+                              Desactivar
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={updateUser.isPending}
+                              onClick={() =>
+                                handleReactivate(u.id, `${u.first_name} ${u.last_name}`)
+                              }
+                            >
+                              <RotateCcw className="size-3.5" />
+                              Reactivar
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </motion.tr>
+                  ))}
+                  {users.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">
+                        Todavía no hay nadie aquí.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </FadeIn>
     </div>
   )
 }

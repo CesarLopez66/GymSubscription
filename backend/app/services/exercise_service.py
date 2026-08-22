@@ -52,7 +52,7 @@ async def list_exercises(
     total = count_result.scalar_one()
 
     result = await db.execute(
-        base_query.order_by(Exercise.name).offset(pagination.offset).limit(pagination.limit)
+        base_query.order_by(Exercise.name, Exercise.id).offset(pagination.offset).limit(pagination.limit)
     )
     return list(result.scalars().all()), total
 

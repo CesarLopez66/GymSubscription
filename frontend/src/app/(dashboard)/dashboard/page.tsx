@@ -1,6 +1,9 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Banknote, ShieldAlert, Users, Dumbbell } from "lucide-react"
+
+import { FadeIn } from "@/components/shared/motion"
+import { StatCard } from "@/components/shared/stat-card"
 import { useUsers } from "@/hooks/use-users"
 import { useRevenueSummary } from "@/hooks/use-payments"
 import { useCheckIns } from "@/hooks/use-checkins"
@@ -19,38 +22,25 @@ export default function DashboardOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Resumen</h1>
+      <FadeIn>
+        <h1 className="text-2xl font-semibold tracking-tight">Resumen</h1>
+      </FadeIn>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Miembros</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold">{members?.total ?? "—"}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Entrenadores</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold">{trainers?.total ?? "—"}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Ingresos totales
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold">
-            {revenue ? formatCurrency(revenue.total_revenue) : "—"}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Check-ins denegados recientes
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold">{deniedToday}</CardContent>
-        </Card>
+        <StatCard label="Miembros" value={members?.total} icon={Users} delay={0} />
+        <StatCard label="Entrenadores" value={trainers?.total} icon={Dumbbell} delay={0.05} />
+        <StatCard
+          label="Ingresos totales"
+          value={revenue?.total_revenue}
+          icon={Banknote}
+          format={formatCurrency}
+          delay={0.1}
+        />
+        <StatCard
+          label="Check-ins denegados recientes"
+          value={deniedToday}
+          icon={ShieldAlert}
+          delay={0.15}
+        />
       </div>
     </div>
   )

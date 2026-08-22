@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { api } from "@/lib/api-client"
-import type { Page, Payment, PaymentMethod, PaymentType } from "@/lib/types"
+import type { Page, Payment, PaymentMethod, PaymentStatus, PaymentType } from "@/lib/types"
 
 export interface PaymentCreateInput {
   user_id?: string
@@ -37,5 +37,16 @@ export function useCreatePayment() {
   return useMutation({
     mutationFn: (input: PaymentCreateInput) => api.post<Payment>("/payments", input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["payments"] }),
+  })
+}
+
+export function useUpdatePaymentStatus() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: PaymentStatus }) =>
+      api.patch<Payment>(`/payments/${id}`, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payments"] })
+    },
   })
 }

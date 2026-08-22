@@ -102,7 +102,7 @@ async def list_users(
     total = count_result.scalar_one()
 
     result = await db.execute(
-        base_query.order_by(User.created_at.desc()).offset(pagination.offset).limit(pagination.limit)
+        base_query.order_by(User.created_at.desc(), User.id).offset(pagination.offset).limit(pagination.limit)
     )
     return list(result.scalars().all()), total
 
