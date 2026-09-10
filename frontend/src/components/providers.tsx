@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
+import { ImpersonationBanner } from "@/components/shared/impersonation-banner"
 import { ApiError } from "@/lib/api-client"
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -29,6 +30,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <ImpersonationBanner />
         {children}
         <Toaster richColors position="top-right" />
       </TooltipProvider>

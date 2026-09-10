@@ -1,6 +1,7 @@
 import type {
   ActivityLevel,
   DayOfWeek,
+  DiscountType,
   FitnessGoal,
   GymStatus,
   PaymentMethod,
@@ -41,6 +42,11 @@ export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
   EXPIRED: "Vencida",
   CANCELLED: "Cancelada",
   PENDING: "Pendiente",
+}
+
+export const DISCOUNT_TYPE_LABELS: Record<DiscountType, string> = {
+  PERCENTAGE: "Porcentaje",
+  FIXED_AMOUNT: "Monto fijo",
 }
 
 export const FITNESS_GOAL_LABELS: Record<FitnessGoal, string> = {
@@ -85,6 +91,7 @@ export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
 }
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  QR: "Código QR",
   CASH: "Efectivo",
   CARD: "Tarjeta",
   TRANSFER: "Transferencia",
