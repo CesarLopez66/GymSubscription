@@ -110,7 +110,7 @@ async def seed() -> None:
             gym_id=None,
             email="superadmin@subgym.dev",
             password_hash=hash_password(DEFAULT_PASSWORD),
-            role=UserRole.SUPERADMIN,
+            roles=[UserRole.SUPERADMIN],
             first_name="Ada",
             last_name="Lovelace",
         )
@@ -135,7 +135,7 @@ async def seed() -> None:
                 gym_id=gym.id,
                 email=f"admin@{gym_spec['subdomain']}.example",
                 password_hash=hash_password(DEFAULT_PASSWORD),
-                role=UserRole.GYM_ADMIN,
+                roles=[UserRole.GYM_ADMIN],
                 first_name="Gym",
                 last_name="Admin",
             )
@@ -164,7 +164,7 @@ async def seed() -> None:
                         gym_id=gym.id,
                         email=f"trainer{i}@{gym_spec['subdomain']}.example",
                         password_hash=hash_password(DEFAULT_PASSWORD),
-                        role=UserRole.TRAINER,
+                        roles=[UserRole.TRAINER],
                         first_name=f"Trainer{i}",
                         last_name=gym_spec["name"].split()[0],
                     )
@@ -175,7 +175,7 @@ async def seed() -> None:
                     gym_id=gym.id,
                     email=f"member{i}@{gym_spec['subdomain']}.example",
                     password_hash=hash_password(DEFAULT_PASSWORD),
-                    role=UserRole.MEMBER,
+                    roles=[UserRole.MEMBER],
                     first_name=f"Member{i}",
                     last_name=gym_spec["name"].split()[0],
                     sex=Sex.MALE if i % 2 == 0 else Sex.FEMALE,

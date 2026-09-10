@@ -9,7 +9,11 @@ from app.core.config import settings
 from app.models import Base
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# ConfigParser (which backs Config.set_main_option) treats "%" as the start of
+# an interpolation token, so a percent-encoded character in the URL (e.g. a
+# password containing "%40" for "@") must be escaped as "%%" or set_main_option
+# raises before the value is ever used as a literal connection string.
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

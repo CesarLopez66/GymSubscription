@@ -53,12 +53,16 @@ services:
       JWT_ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: "30"
       REFRESH_TOKEN_EXPIRE_DAYS: "7"
-      BACKEND_CORS_ORIGINS: '["http://localhost:3000"]'
+      BACKEND_CORS_ORIGINS: '["http://localhost:3000", "https://platinum-course-marble-blank.trycloudflare.com"]'
       BASE_DOMAIN: ${BASE_DOMAIN:-subgym.io}
       # Looser than the app default (10/60): local dev shares one client IP
       # across manual testing and automated checks, which trips the tight
       # production-safe default constantly.
       RATE_LIMIT_LOGIN: ${RATE_LIMIT_LOGIN:-30/60}
+      # LLM used to auto-generate workout routines from evaluations.
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-ollama}
+      MODEL_NAME: ${MODEL_NAME:-qwen2.5-coder:32b}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://10.10.1.70:11434}
     ports:
       - "8000:8000"
 

@@ -37,7 +37,7 @@ async def create_superadmin(email: str, password: str, first_name: str, last_nam
             gym_id=None,
             email=email,
             password_hash=hash_password(password),
-            role=UserRole.SUPERADMIN,
+            roles=[UserRole.SUPERADMIN],
             first_name=first_name,
             last_name=last_name,
         )
