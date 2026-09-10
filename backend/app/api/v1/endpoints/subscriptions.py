@@ -11,8 +11,11 @@ from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.subscription import SubscriptionCreate, SubscriptionRead, SubscriptionUpdate
 from app.services import subscription_service
+from app.services.membership_service import MembershipNotFoundError
 from app.services.subscription_service import (
     InvalidSubscriptionMemberError,
+    MembershipInactiveError,
+    PaymentAmountMismatchError,
     SubscriptionNotFoundError,
 )
 
@@ -26,11 +29,19 @@ async def create_subscription(
     payload: SubscriptionCreate,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
-    _: User = Depends(require_gym_admin),
+    current_user: User = Depends(require_gym_admin),
 ) -> SubscriptionRead:
     try:
-        subscription = await subscription_service.create_subscription(db, gym_id, payload)
+        subscription = await subscription_service.create_subscription(
+            db, gym_id, current_user.id, payload
+        )
     except InvalidSubscriptionMemberError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except MembershipNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except MembershipInactiveError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except PaymentAmountMismatchError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return SubscriptionRead.model_validate(subscription)
 
@@ -38,18 +49,21 @@ async def create_subscription(
 @router.get("", response_model=Page[SubscriptionRead])
 async def list_subscriptions(
     user_id: uuid.UUID | None = None,
+    branch_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
     pagination: PaginationParams = Depends(pagination_params),
     current_user: User = Depends(get_current_active_user),
 ) -> Page[SubscriptionRead]:
-    if current_user.role == UserRole.MEMBER:
+    if UserRole.MEMBER in current_user.roles:
         user_id = current_user.id
-    elif current_user.role not in {UserRole.GYM_ADMIN, UserRole.TRAINER, UserRole.NUTRITIONIST}:
+    elif set(current_user.roles).isdisjoint(
+        {UserRole.GYM_ADMIN, UserRole.TRAINER, UserRole.NUTRITIONIST}
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
     subscriptions, total = await subscription_service.list_subscriptions(
-        db, gym_id, pagination, user_id=user_id
+        db, gym_id, pagination, user_id=user_id, branch_id=branch_id
     )
     return Page.create(
         items=[SubscriptionRead.model_validate(s) for s in subscriptions],
@@ -71,7 +85,7 @@ async def get_subscription(
     except SubscriptionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
-    if current_user.role == UserRole.MEMBER and subscription.user_id != current_user.id:
+    if UserRole.MEMBER in current_user.roles and subscription.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
     return SubscriptionRead.model_validate(subscription)

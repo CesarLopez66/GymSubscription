@@ -40,6 +40,11 @@ class SubscriptionStatus(str, enum.Enum):
     PENDING = "PENDING"
 
 
+class DiscountType(str, enum.Enum):
+    PERCENTAGE = "PERCENTAGE"
+    FIXED_AMOUNT = "FIXED_AMOUNT"
+
+
 class Sex(str, enum.Enum):
     MALE = "MALE"
     FEMALE = "FEMALE"
@@ -67,6 +72,7 @@ class PaymentType(str, enum.Enum):
 
 
 class PaymentMethod(str, enum.Enum):
+    QR = "QR"
     CASH = "CASH"
     CARD = "CARD"
     TRANSFER = "TRANSFER"

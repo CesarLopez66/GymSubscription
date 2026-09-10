@@ -1,24 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { api } from "@/lib/api-client"
-import type {
-  ActivityLevel,
-  FitnessGoal,
-  NutritionPlan,
-  NutritionPlanGenerateResponse,
-  Page,
-} from "@/lib/types"
-
-export interface NutritionGenerateInput {
-  user_id: string
-  weight_kg: number
-  height_cm: number
-  age: number
-  activity_level: ActivityLevel
-  fitness_goal: FitnessGoal
-  body_fat_percentage?: number
-  notes?: string
-}
+import type { NutritionPlan, Page } from "@/lib/types"
 
 export function useNutritionPlans(userId?: string, page = 1, pageSize = 20) {
   return useQuery({
@@ -31,11 +14,43 @@ export function useNutritionPlans(userId?: string, page = 1, pageSize = 20) {
   })
 }
 
-export function useGenerateNutritionPlan() {
+export interface NutritionPlanUpdateInput {
+  calories?: number
+  protein_g?: number
+  carbs_g?: number
+  fats_g?: number
+  water_ml?: number
+  is_active?: boolean
+}
+
+export function useUpdateNutritionPlan() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: NutritionGenerateInput) =>
-      api.post<NutritionPlanGenerateResponse>("/nutrition/generate", input),
+    mutationFn: ({ id, input }: { id: string; input: NutritionPlanUpdateInput }) =>
+      api.patch<NutritionPlan>(`/nutrition/${id}`, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["nutrition"] }),
+  })
+}
+
+export interface NutritionLog {
+  log_date: string
+  protein_g: number
+  carbs_g: number
+  fats_g: number
+}
+
+export function useNutritionLog(date: string) {
+  return useQuery({
+    queryKey: ["nutrition", "log", date],
+    queryFn: () => api.get<NutritionLog | null>(`/nutrition/log?target_date=${date}`),
+  })
+}
+
+export function useUpsertNutritionLog() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { protein_g: number; carbs_g: number; fats_g: number; log_date: string }) =>
+      api.put<NutritionLog>("/nutrition/log", input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["nutrition", "log"] }),
   })
 }

@@ -11,7 +11,7 @@ from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.exercise import ExerciseCreate, ExerciseRead, ExerciseUpdate
 from app.services import exercise_service
-from app.services.exercise_service import ExerciseNotFoundError
+from app.services.exercise_service import ExerciseInUseError, ExerciseNotFoundError
 
 router = APIRouter(prefix="/exercises", tags=["exercises"])
 
@@ -21,7 +21,7 @@ MUTATION_ROLES = {UserRole.SUPERADMIN, UserRole.GYM_ADMIN, UserRole.TRAINER}
 def _catalog_scope(current_user: User) -> uuid.UUID | None:
     """SUPERADMIN manages the global catalog (gym_id=None); everyone else is
     scoped to their own gym (which also sees the global catalog for reads)."""
-    if current_user.role == UserRole.SUPERADMIN:
+    if UserRole.SUPERADMIN in current_user.roles:
         return None
     if current_user.gym_id is None:
         raise HTTPException(
@@ -37,7 +37,7 @@ async def create_exercise(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> ExerciseRead:
-    if current_user.role not in MUTATION_ROLES:
+    if set(current_user.roles).isdisjoint(MUTATION_ROLES):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
     gym_id = _catalog_scope(current_user)
     exercise = await exercise_service.create_exercise(db, gym_id, payload)
@@ -81,7 +81,7 @@ async def update_exercise(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> ExerciseRead:
-    if current_user.role not in MUTATION_ROLES:
+    if set(current_user.roles).isdisjoint(MUTATION_ROLES):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
     gym_id = _catalog_scope(current_user)
     try:
@@ -97,10 +97,12 @@ async def delete_exercise(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> None:
-    if current_user.role not in MUTATION_ROLES:
+    if set(current_user.roles).isdisjoint(MUTATION_ROLES):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
     gym_id = _catalog_scope(current_user)
     try:
         await exercise_service.delete_exercise(db, gym_id, exercise_id)
     except ExerciseNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ExerciseInUseError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc

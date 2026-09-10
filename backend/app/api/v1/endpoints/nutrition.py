@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,8 @@ from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.nutrition import (
+    NutritionLogRead,
+    NutritionLogUpsert,
     NutritionPlanCreate,
     NutritionPlanGenerateRequest,
     NutritionPlanGenerateResponse,
@@ -29,6 +32,7 @@ router = APIRouter(prefix="/nutrition", tags=["nutrition"])
 # The prescriptive health core is shared coaching territory: trainers and
 # nutritionists both work with it, with gym admins retaining oversight.
 require_nutritionist = require_role([UserRole.NUTRITIONIST, UserRole.TRAINER, UserRole.GYM_ADMIN])
+require_member = require_role([UserRole.MEMBER])
 
 
 @router.post(
@@ -78,18 +82,21 @@ async def create_nutrition_plan(
 @router.get("", response_model=Page[NutritionPlanRead])
 async def list_nutrition_plans(
     user_id: uuid.UUID | None = None,
+    branch_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
     pagination: PaginationParams = Depends(pagination_params),
     current_user: User = Depends(get_current_active_user),
 ) -> Page[NutritionPlanRead]:
-    if current_user.role == UserRole.MEMBER:
+    if UserRole.MEMBER in current_user.roles:
         user_id = current_user.id
-    elif current_user.role not in {UserRole.GYM_ADMIN, UserRole.TRAINER, UserRole.NUTRITIONIST}:
+    elif set(current_user.roles).isdisjoint(
+        {UserRole.GYM_ADMIN, UserRole.TRAINER, UserRole.NUTRITIONIST}
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
     plans, total = await nutrition_plan_service.list_nutrition_plans(
-        db, gym_id, pagination, user_id=user_id
+        db, gym_id, pagination, user_id=user_id, branch_id=branch_id
     )
     return Page.create(
         items=[NutritionPlanRead.model_validate(p) for p in plans],
@@ -97,6 +104,38 @@ async def list_nutrition_plans(
         page=pagination.page,
         page_size=pagination.page_size,
     )
+
+
+@router.put("/log", response_model=NutritionLogRead)
+async def upsert_log(
+    payload: NutritionLogUpsert,
+    db: AsyncSession = Depends(get_db),
+    gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    current_user: User = Depends(require_member),
+) -> NutritionLogRead:
+    log = await nutrition_plan_service.upsert_nutrition_log(
+        db,
+        gym_id,
+        current_user.id,
+        payload.log_date,
+        payload.protein_g,
+        payload.carbs_g,
+        payload.fats_g,
+    )
+    return NutritionLogRead.model_validate(log)
+
+
+@router.get("/log", response_model=NutritionLogRead | None)
+async def get_log(
+    target_date: date | None = None,
+    db: AsyncSession = Depends(get_db),
+    gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    current_user: User = Depends(require_member),
+) -> NutritionLogRead | None:
+    log = await nutrition_plan_service.get_nutrition_log(
+        db, gym_id, current_user.id, target_date or date.today()
+    )
+    return NutritionLogRead.model_validate(log) if log else None
 
 
 @router.get("/{plan_id}", response_model=NutritionPlanRead)
@@ -111,7 +150,7 @@ async def get_nutrition_plan(
     except NutritionPlanNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
-    if current_user.role == UserRole.MEMBER and plan.user_id != current_user.id:
+    if UserRole.MEMBER in current_user.roles and plan.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
     return NutritionPlanRead.model_validate(plan)

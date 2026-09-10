@@ -7,9 +7,11 @@ import { z } from "zod"
 import { toast } from "sonner"
 import { Plus, RotateCcw, UserX } from "lucide-react"
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -27,53 +29,47 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import {
   Tabs,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
-import { motion } from "framer-motion"
 
+import { BranchSelect } from "@/components/shared/branch-select"
 import { EditUserDialog } from "@/components/shared/edit-user-dialog"
-import { FadeIn } from "@/components/shared/motion"
+import { EntityCard } from "@/components/shared/entity-card"
+import { initialsOf } from "@/components/shared/member-picker"
+import { FadeIn, StaggerGroup, StaggerItem } from "@/components/shared/motion"
 import { SubscriptionDialog } from "@/components/shared/subscription-dialog"
 import { ApiError } from "@/lib/api-client"
+import { activeBadgeClass } from "@/lib/badge-colors"
 import { ROLE_LABELS } from "@/lib/labels"
 import type { UserRole } from "@/lib/types"
 import { useCreateUser, useDeactivateUser, useUpdateUser, useUsers } from "@/hooks/use-users"
+import { useAuthStore } from "@/store/auth-store"
 
-const ROLES: UserRole[] = ["MEMBER", "TRAINER", "NUTRITIONIST", "GYM_ADMIN"]
+const STAFF_ROLES: UserRole[] = ["GYM_ADMIN", "TRAINER", "NUTRITIONIST"]
+const ALL_ROLES: UserRole[] = ["GYM_ADMIN", "TRAINER", "NUTRITIONIST", "MEMBER"]
 
 const userSchema = z.object({
   first_name: z.string().min(1),
   last_name: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(8, "Debe tener al menos 8 caracteres"),
-  role: z.enum(["MEMBER", "TRAINER", "NUTRITIONIST", "GYM_ADMIN"]),
+  roles: z.array(z.enum(ALL_ROLES)).min(1, "Selecciona al menos un rol"),
   phone: z.string().optional(),
 })
 
 type UserFormValues = z.infer<typeof userSchema>
 
 export default function MembersPage() {
-  const [roleFilter, setRoleFilter] = React.useState<UserRole>("MEMBER")
+  const [section, setSection] = React.useState<"staff" | "clients">("staff")
+  const [staffRoleFilter, setStaffRoleFilter] = React.useState<UserRole>("TRAINER")
+  const roleFilter = section === "clients" ? "MEMBER" : staffRoleFilter
   const [open, setOpen] = React.useState(false)
+  const [branchId, setBranchId] = React.useState<string | undefined>(undefined)
+  const currentUser = useAuthStore((s) => s.user)
   const { data, isLoading } = useUsers(roleFilter, 1, 100)
   const createUser = useCreateUser()
   const deactivateUser = useDeactivateUser()
@@ -86,22 +82,39 @@ export default function MembersPage() {
       last_name: "",
       email: "",
       password: "",
-      role: "MEMBER",
+      roles: section === "clients" ? ["MEMBER"] : ["TRAINER"],
       phone: "",
     },
   })
 
-  const onSubmit = (values: UserFormValues) => {
-    createUser.mutate(values, {
-      onSuccess: () => {
-        toast.success(`${values.first_name} ${values.last_name} agregado`)
-        form.reset()
-        setOpen(false)
-      },
-      onError: (error) => {
-        toast.error(error instanceof ApiError ? error.detail : "No se pudo crear el usuario")
-      },
+  const openDialog = () => {
+    form.reset({
+      first_name: "",
+      last_name: "",
+      email: "",
+      password: "",
+      roles: section === "clients" ? ["MEMBER"] : ["TRAINER"],
+      phone: "",
     })
+    setBranchId(undefined)
+    setOpen(true)
+  }
+
+  const onSubmit = (values: UserFormValues) => {
+    createUser.mutate(
+      { ...values, branch_id: branchId },
+      {
+        onSuccess: () => {
+          toast.success(`${values.first_name} ${values.last_name} agregado`)
+          form.reset()
+          setBranchId(undefined)
+          setOpen(false)
+        },
+        onError: (error) => {
+          toast.error(error instanceof ApiError ? error.detail : "No se pudo crear el usuario")
+        },
+      }
+    )
   }
 
   const handleReactivate = (userId: string, name: string) => {
@@ -122,13 +135,15 @@ export default function MembersPage() {
       <FadeIn className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Personas</h1>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button size="sm" />}>
+          <DialogTrigger render={<Button size="sm" onClick={openDialog} />}>
             <Plus className="size-4" />
             Nueva persona
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Agregar persona</DialogTitle>
+              <DialogTitle>
+                {section === "clients" ? "Agregar cliente" : "Agregar personal"}
+              </DialogTitle>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
@@ -199,30 +214,42 @@ export default function MembersPage() {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Rol</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {ROLES.map((role) => (
-                            <SelectItem key={role} value={role}>
-                              {ROLE_LABELS[role]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {section === "staff" && (
+                  <FormField
+                    control={form.control}
+                    name="roles"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Roles</FormLabel>
+                        <div className="flex flex-col gap-2">
+                          {STAFF_ROLES.map((role) => {
+                            const checked = field.value.includes(role)
+                            return (
+                              <label
+                                key={role}
+                                className="flex items-center gap-2 text-sm font-normal"
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(next) => {
+                                    field.onChange(
+                                      next
+                                        ? [...field.value, role]
+                                        : field.value.filter((r) => r !== role)
+                                    )
+                                  }}
+                                />
+                                {ROLE_LABELS[role]}
+                              </label>
+                            )
+                          })}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+                <BranchSelect value={branchId} onChange={setBranchId} />
                 <DialogFooter>
                   <Button type="submit" disabled={createUser.isPending}>
                     {createUser.isPending ? "Agregando…" : "Agregar persona"}
@@ -234,66 +261,83 @@ export default function MembersPage() {
         </Dialog>
       </FadeIn>
 
-      <FadeIn delay={0.05}>
-        <Tabs value={roleFilter} onValueChange={(v) => setRoleFilter(v as UserRole)}>
+      <FadeIn delay={0.05} className="space-y-3">
+        <Tabs
+          value={section}
+          onValueChange={(v) => setSection(v as "staff" | "clients")}
+        >
           <TabsList>
-            {ROLES.map((role) => (
-              <TabsTrigger key={role} value={role}>
-                {ROLE_LABELS[role]}
-              </TabsTrigger>
-            ))}
+            <TabsTrigger value="staff">Personal</TabsTrigger>
+            <TabsTrigger value="clients">Clientes</TabsTrigger>
           </TabsList>
         </Tabs>
+        {section === "staff" && (
+          <Tabs
+            value={staffRoleFilter}
+            onValueChange={(v) => setStaffRoleFilter(v as UserRole)}
+          >
+            <TabsList>
+              {STAFF_ROLES.map((role) => (
+                <TabsTrigger key={role} value={role}>
+                  {ROLE_LABELS[role]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
       </FadeIn>
 
       <FadeIn delay={0.1}>
         <Card>
           <CardHeader>
             <CardTitle>
-              {ROLE_LABELS[roleFilter]}{" "}
+              {section === "clients" ? "Clientes" : ROLE_LABELS[staffRoleFilter]}{" "}
               <span className="text-muted-foreground">({data?.total ?? 0})</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-28 w-full" />
                 ))}
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Correo electrónico</TableHead>
-                    <TableHead>Teléfono</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((u, i) => (
-                    <motion.tr
-                      key={u.id}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25, delay: Math.min(i * 0.03, 0.3) }}
-                      className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
-                    >
-                      <TableCell className="font-medium">
-                        {u.first_name} {u.last_name}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                      <TableCell className="text-muted-foreground">{u.phone ?? "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant={u.is_active ? "default" : "destructive"}>
+              <StaggerGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {users.map((u) => (
+                  <StaggerItem key={u.id}>
+                    <EntityCard>
+                      <div className="flex items-center gap-3">
+                        <Avatar size="lg" className="shrink-0">
+                          <AvatarFallback className="bg-primary/10 font-medium text-primary">
+                            {initialsOf(u)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-semibold leading-tight">
+                            {u.first_name} {u.last_name}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">{u.email}</p>
+                        </div>
+                        <Badge className={activeBadgeClass(u.is_active)}>
                           {u.is_active ? "Activo" : "Inactivo"}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {roleFilter === "MEMBER" && (
+                      </div>
+
+                      {section === "staff" && (
+                        <div className="flex flex-wrap gap-1">
+                          {u.roles.map((r) => (
+                            <Badge key={r} variant="outline">
+                              {ROLE_LABELS[r]}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between gap-2 border-t pt-3">
+                        <span className="text-xs text-muted-foreground">{u.phone ?? "Sin teléfono"}</span>
+                        <div className="flex items-center gap-1">
+                          {section === "clients" && (
                             <SubscriptionDialog
                               userId={u.id}
                               memberName={`${u.first_name} ${u.last_name}`}
@@ -304,7 +348,12 @@ export default function MembersPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              disabled={deactivateUser.isPending}
+                              disabled={deactivateUser.isPending || u.id === currentUser?.id}
+                              title={
+                                u.id === currentUser?.id
+                                  ? "No puedes desactivar tu propia cuenta"
+                                  : "Desactivar"
+                              }
                               onClick={() =>
                                 deactivateUser.mutate(u.id, {
                                   onError: (error) =>
@@ -317,34 +366,31 @@ export default function MembersPage() {
                               }
                             >
                               <UserX className="size-3.5" />
-                              Desactivar
                             </Button>
                           ) : (
                             <Button
                               variant="ghost"
                               size="sm"
+                              title="Reactivar"
                               disabled={updateUser.isPending}
                               onClick={() =>
                                 handleReactivate(u.id, `${u.first_name} ${u.last_name}`)
                               }
                             >
                               <RotateCcw className="size-3.5" />
-                              Reactivar
                             </Button>
                           )}
                         </div>
-                      </TableCell>
-                    </motion.tr>
-                  ))}
-                  {users.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        Todavía no hay nadie aquí.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                      </div>
+                    </EntityCard>
+                  </StaggerItem>
+                ))}
+                {users.length === 0 && (
+                  <p className="text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
+                    Todavía no hay nadie aquí.
+                  </p>
+                )}
+              </StaggerGroup>
             )}
           </CardContent>
         </Card>

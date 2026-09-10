@@ -2,7 +2,7 @@ import uuid
 from datetime import date
 
 from sqlalchemy import Boolean, Date, Enum, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -21,9 +21,25 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=True,
         index=True,
     )
+    # Which of the gym's locations this person is based at. Nullable: a
+    # single-location gym (the common case) never needs to set it.
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role"), nullable=False)
+    # A person can hold more than one staff role at once (e.g. trainer +
+    # nutritionist, or an admin who also coaches) — see the roles migration
+    # for why this is a plain array rather than a join table: nothing in the
+    # app ever needs "which users have role X" as its own query, only
+    # per-user membership checks and the occasional aggregate (unnest'd in
+    # superadmin_service).
+    roles: Mapped[list[UserRole]] = mapped_column(
+        ARRAY(Enum(UserRole, name="user_role")), nullable=False
+    )
 
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)

@@ -17,8 +17,9 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str = Field(min_length=8, max_length=128)
-    role: UserRole
+    roles: list[UserRole] = Field(min_length=1)
     gym_id: uuid.UUID | None = None
+    branch_id: uuid.UUID | None = None
 
 
 class UserUpdate(BaseModel):
@@ -28,6 +29,8 @@ class UserUpdate(BaseModel):
     date_of_birth: date | None = None
     sex: Sex | None = None
     is_active: bool | None = None
+    branch_id: uuid.UUID | None = None
+    roles: list[UserRole] | None = Field(default=None, min_length=1)
 
 
 class UserChangePassword(BaseModel):
@@ -40,7 +43,8 @@ class UserRead(UserBase):
 
     id: uuid.UUID
     gym_id: uuid.UUID | None
-    role: UserRole
+    branch_id: uuid.UUID | None
+    roles: list[UserRole]
     is_active: bool
     created_at: datetime
     updated_at: datetime

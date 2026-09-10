@@ -30,6 +30,12 @@ class NutritionPlan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=True,
         index=True,
     )
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     fitness_goal: Mapped[FitnessGoal] = mapped_column(
         Enum(FitnessGoal, name="nutrition_fitness_goal"), nullable=False

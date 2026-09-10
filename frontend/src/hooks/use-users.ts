@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { api } from "@/lib/api-client"
 import type { Page, Sex, User, UserRole } from "@/lib/types"
@@ -6,23 +6,29 @@ import type { Page, Sex, User, UserRole } from "@/lib/types"
 export interface UserCreateInput {
   email: string
   password: string
-  role: UserRole
+  roles: UserRole[]
   first_name: string
   last_name: string
   phone?: string
   date_of_birth?: string
   sex?: Sex
+  branch_id?: string
 }
 
-export function useUsers(role?: UserRole, page = 1, pageSize = 20) {
-  return useQuery({
-    queryKey: ["users", role, page, pageSize],
+export function usersQueryOptions(role?: UserRole, page = 1, pageSize = 20, branchId?: string) {
+  return queryOptions({
+    queryKey: ["users", role, page, pageSize, branchId] as const,
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
       if (role) params.set("role", role)
+      if (branchId) params.set("branch_id", branchId)
       return api.get<Page<User>>(`/users?${params.toString()}`)
     },
   })
+}
+
+export function useUsers(role?: UserRole, page = 1, pageSize = 20, branchId?: string) {
+  return useQuery(usersQueryOptions(role, page, pageSize, branchId))
 }
 
 export function useCreateUser() {
@@ -47,6 +53,8 @@ export interface UserUpdateInput {
   phone?: string
   sex?: Sex
   is_active?: boolean
+  branch_id?: string | null
+  roles?: UserRole[]
 }
 
 export function useUpdateUser() {

@@ -10,6 +10,7 @@ class NutritionPlanGenerateRequest(BaseModel):
     """Input used to auto-calculate a nutrition plan via the prescriptive algorithm."""
 
     user_id: uuid.UUID
+    branch_id: uuid.UUID | None = None
     weight_kg: float = Field(gt=0, le=500)
     height_cm: float = Field(gt=0, le=300)
     age: int = Field(gt=0, le=120)
@@ -27,6 +28,7 @@ class NutritionPlanCreate(BaseModel):
     """Direct manual creation of a nutrition plan, bypassing auto-calculation."""
 
     user_id: uuid.UUID
+    branch_id: uuid.UUID | None = None
     fitness_goal: FitnessGoal
     bmr: float = Field(gt=0)
     bmr_formula: str = Field(default="manual", max_length=20)
@@ -65,6 +67,7 @@ class NutritionPlanRead(BaseModel):
     id: uuid.UUID
     gym_id: uuid.UUID
     user_id: uuid.UUID
+    branch_id: uuid.UUID | None
     created_by_id: uuid.UUID | None
     fitness_goal: FitnessGoal
     bmr: float
@@ -89,3 +92,19 @@ class NutritionPlanGenerateResponse(NutritionPlanRead):
     POST /workouts/assign."""
 
     recommended_workout_template: WorkoutTemplateRecommendationRead
+
+
+class NutritionLogUpsert(BaseModel):
+    protein_g: float = Field(ge=0, le=2000)
+    carbs_g: float = Field(ge=0, le=2000)
+    fats_g: float = Field(ge=0, le=2000)
+    log_date: date = Field(default_factory=date.today)
+
+
+class NutritionLogRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    log_date: date
+    protein_g: float
+    carbs_g: float
+    fats_g: float

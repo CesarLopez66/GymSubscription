@@ -16,6 +16,7 @@ MAX_PASSWORD_BYTES = 72
 class TokenType(str, Enum):
     ACCESS = "access"
     REFRESH = "refresh"
+    PASSWORD_RESET = "password_reset"
 
 
 def hash_password(password: str) -> str:
@@ -56,7 +57,7 @@ def create_access_token(
     *,
     user_id: uuid.UUID,
     gym_id: uuid.UUID | None,
-    role: str,
+    roles: list[str],
     token_version: int,
 ) -> str:
     return _create_token(
@@ -65,7 +66,30 @@ def create_access_token(
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
         extra_claims={
             "gym_id": str(gym_id) if gym_id else None,
-            "role": role,
+            "roles": roles,
+            "tv": token_version,
+        },
+    )
+
+
+def create_password_reset_token(
+    *,
+    user_id: uuid.UUID,
+    gym_id: uuid.UUID | None,
+    token_version: int,
+) -> str:
+    """`tv` is the same guard `get_current_user` uses on access tokens: if
+    the password (or token_version) changes between issuing this link and
+    someone clicking it, the token stops matching and is rejected — so a
+    reset link can't be replayed after it's already been used once, and an
+    old, forgotten link left lying around stops working the moment the
+    password actually changes some other way."""
+    return _create_token(
+        subject=str(user_id),
+        token_type=TokenType.PASSWORD_RESET,
+        expires_delta=timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES),
+        extra_claims={
+            "gym_id": str(gym_id) if gym_id else None,
             "tv": token_version,
         },
     )

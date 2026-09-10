@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -30,7 +30,16 @@ class PhysicalEvaluation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=True,
         index=True,
     )
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
+    # Nullable: rows created before macro auto-generation needed age don't
+    # have one. All new evaluations set it (EvaluationCreate requires it).
+    age: Mapped[int | None] = mapped_column(Integer, nullable=True)
     weight_kg: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
     height_cm: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
     body_fat_percentage: Mapped[float | None] = mapped_column(Numeric(4, 2), nullable=True)

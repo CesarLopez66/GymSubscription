@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { api } from "@/lib/api-client"
 import type { Membership, Page } from "@/lib/types"
@@ -11,11 +11,18 @@ export interface MembershipInput {
   is_active?: boolean
 }
 
-export function useMemberships(page = 1, pageSize = 50) {
-  return useQuery({
-    queryKey: ["memberships", page, pageSize],
+export function membershipsQueryOptions(page = 1, pageSize = 50) {
+  return queryOptions({
+    queryKey: ["memberships", page, pageSize] as const,
     queryFn: () => api.get<Page<Membership>>(`/memberships?page=${page}&page_size=${pageSize}`),
+    // Planes de membresía: se editan ocasionalmente desde un panel de admin,
+    // no varias veces por minuto — un staleTime largo evita refetches inútiles.
+    staleTime: 5 * 60 * 1000,
   })
+}
+
+export function useMemberships(page = 1, pageSize = 50) {
+  return useQuery(membershipsQueryOptions(page, pageSize))
 }
 
 export function useCreateMembership() {

@@ -1,16 +1,22 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { api } from "@/lib/api-client"
 import type { CheckIn, Page } from "@/lib/types"
 
-export function useCheckIns(userId?: string, opts?: { live?: boolean }) {
-  return useQuery({
-    queryKey: ["check-ins", userId],
+export function checkInsQueryOptions(userId?: string, pageSize = 25) {
+  return queryOptions({
+    queryKey: ["check-ins", userId, pageSize] as const,
     queryFn: () => {
-      const params = new URLSearchParams({ page: "1", page_size: "25" })
+      const params = new URLSearchParams({ page: "1", page_size: String(pageSize) })
       if (userId) params.set("user_id", userId)
       return api.get<Page<CheckIn>>(`/check-in?${params.toString()}`)
     },
+  })
+}
+
+export function useCheckIns(userId?: string, opts?: { live?: boolean; pageSize?: number }) {
+  return useQuery({
+    ...checkInsQueryOptions(userId, opts?.pageSize ?? 25),
     refetchInterval: opts?.live ? 5_000 : false,
   })
 }
@@ -31,6 +37,7 @@ export function useVerifyCheckIn() {
           id: `optimistic-${Date.now()}`,
           gym_id: "",
           user_id: userId,
+          branch_id: null,
           timestamp: new Date().toISOString(),
           access_granted: true,
           denial_reason: null,
@@ -48,5 +55,13 @@ export function useVerifyCheckIn() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["check-ins"] })
     },
+  })
+}
+
+export function useSelfCheckIn() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (qrToken: string) => api.post<CheckIn>("/check-in/self", { qr_token: qrToken }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["check-ins"] }),
   })
 }

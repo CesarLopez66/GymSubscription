@@ -11,7 +11,7 @@ from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.membership import MembershipCreate, MembershipRead, MembershipUpdate
 from app.services import membership_service
-from app.services.membership_service import MembershipNotFoundError
+from app.services.membership_service import MembershipInUseError, MembershipNotFoundError
 
 router = APIRouter(prefix="/memberships", tags=["memberships"])
 
@@ -88,3 +88,5 @@ async def delete_membership(
         await membership_service.delete_membership(db, gym_id, membership_id)
     except MembershipNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except MembershipInUseError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc

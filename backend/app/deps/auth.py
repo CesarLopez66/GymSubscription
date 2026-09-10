@@ -50,7 +50,7 @@ async def get_current_user(
     # is in place before the very first tenant-scoped query (the user lookup
     # below) executes.
     await set_rls_context(
-        db, gym_id=payload.gym_id, is_superadmin=payload.role == UserRole.SUPERADMIN
+        db, gym_id=payload.gym_id, is_superadmin=UserRole.SUPERADMIN in payload.roles
     )
 
     result = await db.execute(select(User).where(User.id == payload.sub))
@@ -101,10 +101,11 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
 
 def require_role(allowed_roles: list[UserRole]) -> Callable:
     async def _require_role(current_user: User = Depends(get_current_active_user)) -> User:
-        if current_user.role not in allowed_roles:
+        if set(current_user.roles).isdisjoint(allowed_roles):
+            roles_label = ", ".join(r.value for r in current_user.roles)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"El rol '{current_user.role.value}' no tiene permiso para realizar esta acción",
+                detail=f"El rol '{roles_label}' no tiene permiso para realizar esta acción",
             )
         return current_user
 

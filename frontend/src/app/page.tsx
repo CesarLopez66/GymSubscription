@@ -15,7 +15,7 @@ export default function Home() {
   React.useEffect(() => {
     if (!hasHydrated) return
     if (accessToken && user) {
-      router.replace(roleHome(user.role))
+      router.replace(roleHome(user.roles))
     } else {
       router.replace("/login")
     }

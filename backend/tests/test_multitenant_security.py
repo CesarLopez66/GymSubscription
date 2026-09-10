@@ -68,7 +68,7 @@ async def two_tenants(require_db):
             gym_id=gym_a.id,
             email=f"member@{gym_a.subdomain}.example",
             password_hash=hash_password("Passw0rd!123"),
-            role=UserRole.MEMBER,
+            roles=[UserRole.MEMBER],
             first_name="Alice",
             last_name="TenantA",
         )
@@ -76,7 +76,7 @@ async def two_tenants(require_db):
             gym_id=gym_b.id,
             email=f"member@{gym_b.subdomain}.example",
             password_hash=hash_password("Passw0rd!123"),
-            role=UserRole.MEMBER,
+            roles=[UserRole.MEMBER],
             first_name="Bob",
             last_name="TenantB",
         )
@@ -153,7 +153,7 @@ class TestRowLevelSecurity:
                     gym_id=two_tenants["gym_b_id"],  # attempting to write into tenant B
                     email="intruder@example.com",
                     password_hash=hash_password("Passw0rd!123"),
-                    role=UserRole.MEMBER,
+                    roles=[UserRole.MEMBER],
                     first_name="Intruder",
                     last_name="Attempt",
                 )

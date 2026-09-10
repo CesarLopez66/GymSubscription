@@ -23,6 +23,15 @@ class CheckIn(UUIDPrimaryKeyMixin, Base):
         nullable=False,
         index=True,
     )
+    # Set when the QR scanned belongs to a specific branch rather than the
+    # gym's own entrance QR — lets multi-location gyms tell their branches'
+    # foot traffic apart.
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )

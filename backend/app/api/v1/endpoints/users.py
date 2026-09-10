@@ -26,6 +26,21 @@ require_gym_admin = require_role([UserRole.GYM_ADMIN])
 STAFF_MANAGED_ROLES = {UserRole.GYM_ADMIN, UserRole.TRAINER, UserRole.NUTRITIONIST, UserRole.MEMBER}
 
 
+def _validate_roles(roles: list[UserRole]) -> None:
+    if not set(roles) <= STAFF_MANAGED_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Rol inválido para un usuario del gimnasio"
+        )
+    # MEMBER never mixes with a staff role: a client doesn't become "staff"
+    # by this feature, and staff (admin/trainer/nutritionist) can combine
+    # freely among themselves but never with MEMBER.
+    if UserRole.MEMBER in roles and len(roles) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El rol de miembro no se puede combinar con roles de personal",
+        )
+
+
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def create_user(
     payload: UserCreate,
@@ -33,10 +48,7 @@ async def create_user(
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
     _: User = Depends(require_gym_admin),
 ) -> UserRead:
-    if payload.role not in STAFF_MANAGED_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Rol inválido para un usuario del gimnasio"
-        )
+    _validate_roles(payload.roles)
     try:
         user = await user_service.create_user(db, gym_id, payload)
     except EmailAlreadyExistsError as exc:
@@ -49,12 +61,13 @@ async def create_user(
 @router.get("", response_model=Page[UserRead])
 async def list_users(
     role: UserRole | None = None,
+    branch_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
     pagination: PaginationParams = Depends(pagination_params),
     _: User = Depends(require_role([UserRole.GYM_ADMIN, UserRole.TRAINER, UserRole.NUTRITIONIST])),
 ) -> Page[UserRead]:
-    users, total = await user_service.list_users(db, gym_id, pagination, role=role)
+    users, total = await user_service.list_users(db, gym_id, pagination, role=role, branch_id=branch_id)
     return Page.create(
         items=[UserRead.model_validate(u) for u in users],
         total=total,
@@ -70,7 +83,7 @@ async def get_user(
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
     current_user: User = Depends(get_current_active_user),
 ) -> UserRead:
-    if current_user.role == UserRole.MEMBER and current_user.id != user_id:
+    if UserRole.MEMBER in current_user.roles and current_user.id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
     try:
         user = await user_service.get_user(db, gym_id, user_id)
@@ -87,11 +100,23 @@ async def update_user(
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
     current_user: User = Depends(get_current_active_user),
 ) -> UserRead:
-    if current_user.role not in {UserRole.GYM_ADMIN} and current_user.id != user_id:
+    if UserRole.GYM_ADMIN not in current_user.roles and current_user.id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
-    if current_user.role != UserRole.GYM_ADMIN and payload.is_active is not None:
+    if UserRole.GYM_ADMIN not in current_user.roles and payload.is_active is not None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Solo un administrador de gimnasio puede cambiar el estado de la cuenta"
+        )
+    if UserRole.GYM_ADMIN not in current_user.roles and payload.roles is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo un administrador de gimnasio puede cambiar los roles de una cuenta",
+        )
+    if payload.roles is not None:
+        _validate_roles(payload.roles)
+    if payload.is_active is False and current_user.id == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No puedes desactivar tu propia cuenta",
         )
     try:
         user = await user_service.update_user(db, gym_id, user_id, payload)
@@ -126,8 +151,13 @@ async def deactivate_user(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
-    _: User = Depends(require_gym_admin),
+    current_user: User = Depends(require_gym_admin),
 ) -> UserRead:
+    if current_user.id == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No puedes desactivar tu propia cuenta",
+        )
     try:
         user = await user_service.deactivate_user(db, gym_id, user_id)
     except UserNotFoundError as exc:

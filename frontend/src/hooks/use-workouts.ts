@@ -42,3 +42,50 @@ export function useAssignWorkoutPlan() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workouts"] }),
   })
 }
+
+export function useReplaceWorkoutPlanItems() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, items }: { id: string; items: WorkoutPlanItemInput[] }) =>
+      api.put<WorkoutPlan>(`/workouts/${id}/items`, items),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workouts"] }),
+  })
+}
+
+export function useUpdateWorkoutPlan() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
+      api.patch<WorkoutPlan>(`/workouts/${id}`, { is_active }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workouts"] }),
+  })
+}
+
+export function useCompletionsForDate(date: string) {
+  return useQuery({
+    queryKey: ["workouts", "completions", date],
+    queryFn: () => api.get<string[]>(`/workouts/completions?target_date=${date}`),
+  })
+}
+
+export function useSetItemCompletion() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ itemId, completed, date }: { itemId: string; completed: boolean; date: string }) =>
+      api.put<void>(`/workouts/items/${itemId}/completion`, { completed, target_date: date }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workouts", "completions"] }),
+  })
+}
+
+export interface WorkoutAdherence {
+  active_days: number
+  period_days: number
+}
+
+export function useWorkoutAdherence(userId: string, days = 7) {
+  return useQuery({
+    queryKey: ["workouts", "adherence", userId, days],
+    queryFn: () => api.get<WorkoutAdherence>(`/workouts/adherence/${userId}?days=${days}`),
+    enabled: !!userId,
+  })
+}

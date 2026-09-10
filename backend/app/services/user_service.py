@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password, verify_password
-from app.deps.pagination import PaginationParams
+from app.deps.pagination import PaginationParams, paginate
 from app.models.enums import SAAS_PLAN_MEMBER_LIMITS, UserRole
 from app.models.gym import Gym
 from app.models.user import User
@@ -45,7 +45,7 @@ async def _ensure_member_limit_not_exceeded(db: AsyncSession, gym_id: uuid.UUID)
 
     count_result = await db.execute(
         select(func.count()).select_from(User).where(
-            User.gym_id == gym_id, User.role == UserRole.MEMBER, User.is_active.is_(True)
+            User.gym_id == gym_id, User.roles.any(UserRole.MEMBER), User.is_active.is_(True)
         )
     )
     active_members = count_result.scalar_one()
@@ -57,14 +57,15 @@ async def _ensure_member_limit_not_exceeded(db: AsyncSession, gym_id: uuid.UUID)
 
 async def create_user(db: AsyncSession, gym_id: uuid.UUID, data: UserCreate) -> User:
     await _ensure_email_available(db, gym_id, data.email)
-    if data.role == UserRole.MEMBER:
+    if UserRole.MEMBER in data.roles:
         await _ensure_member_limit_not_exceeded(db, gym_id)
 
     user = User(
         gym_id=gym_id,
+        branch_id=data.branch_id,
         email=data.email,
         password_hash=hash_password(data.password),
-        role=data.role,
+        roles=data.roles,
         first_name=data.first_name,
         last_name=data.last_name,
         phone=data.phone,
@@ -93,18 +94,15 @@ async def list_users(
     pagination: PaginationParams,
     *,
     role: UserRole | None = None,
+    branch_id: uuid.UUID | None = None,
 ) -> tuple[list[User], int]:
     base_query = select(User).where(User.gym_id == gym_id)
     if role is not None:
-        base_query = base_query.where(User.role == role)
+        base_query = base_query.where(User.roles.any(role))
+    if branch_id is not None:
+        base_query = base_query.where(User.branch_id == branch_id)
 
-    count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
-    total = count_result.scalar_one()
-
-    result = await db.execute(
-        base_query.order_by(User.created_at.desc(), User.id).offset(pagination.offset).limit(pagination.limit)
-    )
-    return list(result.scalars().all()), total
+    return await paginate(db, base_query, User.created_at.desc(), User.id, pagination=pagination)
 
 
 async def update_user(db: AsyncSession, gym_id: uuid.UUID, user_id: uuid.UUID, data: UserUpdate) -> User:

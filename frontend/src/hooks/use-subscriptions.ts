@@ -6,15 +6,19 @@ import type { MemberSubscription, Page, SubscriptionStatus } from "@/lib/types"
 export interface SubscriptionCreateInput {
   user_id: string
   membership_id: string
+  branch_id?: string
   start_date?: string
+  payment_amount: number
+  payment_method: string
 }
 
-export function useSubscriptions(userId?: string, page = 1, pageSize = 20) {
+export function useSubscriptions(userId?: string, page = 1, pageSize = 20, branchId?: string) {
   return useQuery({
-    queryKey: ["subscriptions", userId, page, pageSize],
+    queryKey: ["subscriptions", userId, page, pageSize, branchId],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
       if (userId) params.set("user_id", userId)
+      if (branchId) params.set("branch_id", branchId)
       return api.get<Page<MemberSubscription>>(`/subscriptions?${params.toString()}`)
     },
   })

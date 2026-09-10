@@ -51,6 +51,7 @@ class WorkoutPlanBase(BaseModel):
 
 class WorkoutPlanCreate(WorkoutPlanBase):
     user_id: uuid.UUID
+    branch_id: uuid.UUID | None = None
     items: list[WorkoutPlanItemCreate] = Field(default_factory=list)
 
 
@@ -68,7 +69,18 @@ class WorkoutPlanRead(WorkoutPlanBase):
     id: uuid.UUID
     gym_id: uuid.UUID
     user_id: uuid.UUID
+    branch_id: uuid.UUID | None
     created_by_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
     items: list[WorkoutPlanItemRead] = Field(default_factory=list)
+
+
+class WorkoutCompletionSet(BaseModel):
+    completed: bool
+    target_date: date | None = None
+
+
+class WorkoutAdherenceRead(BaseModel):
+    active_days: int
+    period_days: int

@@ -30,6 +30,12 @@ class WorkoutPlan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=True,
         index=True,
     )
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     fitness_goal: Mapped[FitnessGoal] = mapped_column(
