@@ -1,14 +1,19 @@
 import uuid
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps.pagination import PaginationParams
+from app.deps.pagination import PaginationParams, paginate
 from app.models.exercise import Exercise
 from app.schemas.exercise import ExerciseCreate, ExerciseUpdate
 
 
 class ExerciseNotFoundError(Exception):
+    pass
+
+
+class ExerciseInUseError(Exception):
     pass
 
 
@@ -48,13 +53,7 @@ async def list_exercises(
     else:
         base_query = select(Exercise).where(Exercise.gym_id.is_(None))
 
-    count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
-    total = count_result.scalar_one()
-
-    result = await db.execute(
-        base_query.order_by(Exercise.name, Exercise.id).offset(pagination.offset).limit(pagination.limit)
-    )
-    return list(result.scalars().all()), total
+    return await paginate(db, base_query, Exercise.name, Exercise.id, pagination=pagination)
 
 
 async def _get_owned_exercise(
@@ -84,5 +83,14 @@ async def update_exercise(
 
 async def delete_exercise(db: AsyncSession, gym_id: uuid.UUID | None, exercise_id: uuid.UUID) -> None:
     exercise = await _get_owned_exercise(db, gym_id, exercise_id)
-    await db.delete(exercise)
-    await db.flush()
+    try:
+        # A SAVEPOINT so the FK violation (exercise still used by a workout
+        # plan item, protected by ON DELETE RESTRICT) only rolls back this
+        # statement instead of aborting the whole request's transaction.
+        async with db.begin_nested():
+            await db.delete(exercise)
+            await db.flush()
+    except IntegrityError as exc:
+        raise ExerciseInUseError(
+            "No se puede eliminar: está asignado a uno o más planes de entrenamiento"
+        ) from exc

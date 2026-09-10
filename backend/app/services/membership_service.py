@@ -3,12 +3,17 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps.pagination import PaginationParams
+from app.deps.pagination import PaginationParams, paginate
 from app.models.membership import Membership
+from app.models.subscription import MemberSubscription
 from app.schemas.membership import MembershipCreate, MembershipUpdate
 
 
 class MembershipNotFoundError(Exception):
+    pass
+
+
+class MembershipInUseError(Exception):
     pass
 
 
@@ -34,16 +39,9 @@ async def list_memberships(
     db: AsyncSession, gym_id: uuid.UUID, pagination: PaginationParams
 ) -> tuple[list[Membership], int]:
     base_query = select(Membership).where(Membership.gym_id == gym_id)
-
-    count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
-    total = count_result.scalar_one()
-
-    result = await db.execute(
-        base_query.order_by(Membership.created_at.desc(), Membership.id)
-        .offset(pagination.offset)
-        .limit(pagination.limit)
+    return await paginate(
+        db, base_query, Membership.created_at.desc(), Membership.id, pagination=pagination
     )
-    return list(result.scalars().all()), total
 
 
 async def update_membership(
@@ -59,5 +57,19 @@ async def update_membership(
 
 async def delete_membership(db: AsyncSession, gym_id: uuid.UUID, membership_id: uuid.UUID) -> None:
     membership = await get_membership(db, gym_id, membership_id)
+
+    # Membership.subscriptions cascades on delete, so without this guard
+    # deleting a plan silently wipes out every subscription ever sold on it
+    # (active ones included), instantly denying paying members at the door.
+    count_result = await db.execute(
+        select(func.count())
+        .select_from(MemberSubscription)
+        .where(MemberSubscription.membership_id == membership_id)
+    )
+    if count_result.scalar_one() > 0:
+        raise MembershipInUseError(
+            "No se puede eliminar: hay suscripciones asociadas a este plan. Desactívalo en su lugar."
+        )
+
     await db.delete(membership)
     await db.flush()

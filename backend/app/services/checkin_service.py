@@ -1,12 +1,12 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.redis_client import redis_client
-from app.deps.pagination import PaginationParams
+from app.deps.pagination import PaginationParams, paginate
 from app.models.checkin import CheckIn
 from app.models.enums import SubscriptionStatus
 from app.models.subscription import MemberSubscription
@@ -47,7 +47,13 @@ async def _compute_access(db: AsyncSession, *, gym_id: uuid.UUID, user: User) ->
         .where(
             MemberSubscription.gym_id == gym_id,
             MemberSubscription.user_id == user.id,
-            MemberSubscription.status == SubscriptionStatus.ACTIVE,
+            # PENDING is included on purpose: nothing ever flips a
+            # future-dated subscription to ACTIVE on its start day (there's
+            # no scheduled job), so excluding it here would deny a paying
+            # member whose subscription has, in reality, already started.
+            MemberSubscription.status.in_(
+                [SubscriptionStatus.ACTIVE, SubscriptionStatus.PENDING]
+            ),
             MemberSubscription.start_date <= today,
             MemberSubscription.end_date >= today,
         )
@@ -57,10 +63,17 @@ async def _compute_access(db: AsyncSession, *, gym_id: uuid.UUID, user: User) ->
 
     if active_subscription is None:
         return False, "No tiene una suscripción activa"
+
+    if active_subscription.status == SubscriptionStatus.PENDING:
+        active_subscription.status = SubscriptionStatus.ACTIVE
+        await db.flush()
+
     return True, None
 
 
-async def perform_check_in(db: AsyncSession, *, gym_id: uuid.UUID, user_id: uuid.UUID) -> CheckIn:
+async def perform_check_in(
+    db: AsyncSession, *, gym_id: uuid.UUID, user_id: uuid.UUID, branch_id: uuid.UUID | None = None
+) -> CheckIn:
     """Verifies access and always writes an audit CheckIn row. The GRANTED/DENIED
     verdict itself is cached in Redis (short TTL) so repeat scans at the door
     stay well under 200ms without re-querying subscriptions every time."""
@@ -83,6 +96,7 @@ async def perform_check_in(db: AsyncSession, *, gym_id: uuid.UUID, user_id: uuid
     check_in = CheckIn(
         gym_id=gym_id,
         user_id=user_id,
+        branch_id=branch_id,
         access_granted=access_granted,
         denial_reason=denial_reason,
     )
@@ -98,17 +112,14 @@ async def list_check_ins(
     pagination: PaginationParams,
     *,
     user_id: uuid.UUID | None = None,
+    branch_id: uuid.UUID | None = None,
 ) -> tuple[list[CheckIn], int]:
     base_query = select(CheckIn).where(CheckIn.gym_id == gym_id)
     if user_id is not None:
         base_query = base_query.where(CheckIn.user_id == user_id)
+    if branch_id is not None:
+        base_query = base_query.where(CheckIn.branch_id == branch_id)
 
-    count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
-    total = count_result.scalar_one()
-
-    result = await db.execute(
-        base_query.order_by(CheckIn.timestamp.desc(), CheckIn.id.desc())
-        .offset(pagination.offset)
-        .limit(pagination.limit)
+    return await paginate(
+        db, base_query, CheckIn.timestamp.desc(), CheckIn.id.desc(), pagination=pagination
     )
-    return list(result.scalars().all()), total
