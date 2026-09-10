@@ -7,7 +7,7 @@ export default function TrainerHomePage() {
   const router = useRouter()
 
   React.useEffect(() => {
-    router.replace("/trainer/evaluations")
+    router.replace("/trainer/clients")
   }, [router])
 
   return null
