@@ -1,243 +1,175 @@
 "use client"
 
 import * as React from "react"
+import dynamic from "next/dynamic"
 import { QRCodeSVG } from "qrcode.react"
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts"
+import { toast } from "sonner"
+import { CheckCircle2, Flame, ScanLine, XCircle } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Progress } from "@/components/ui/progress"
+import { Skeleton } from "@/components/ui/skeleton"
 import { FadeIn } from "@/components/shared/motion"
-import { RestTimer } from "@/components/shared/rest-timer"
-import type { DayOfWeek } from "@/lib/types"
-import { useNutritionPlans } from "@/hooks/use-nutrition"
-import { useWorkoutPlans } from "@/hooks/use-workouts"
+import { ApiError } from "@/lib/api-client"
+import type { CheckIn } from "@/lib/types"
+import { useCheckIns, useSelfCheckIn } from "@/hooks/use-checkins"
 import { useAuthStore } from "@/store/auth-store"
 
-const DAY_NAMES: DayOfWeek[] = [
-  "SUNDAY",
-  "MONDAY",
-  "TUESDAY",
-  "WEDNESDAY",
-  "THURSDAY",
-  "FRIDAY",
-  "SATURDAY",
-]
+// html5-qrcode touches `document`/camera APIs at import time, and it's only
+// needed once the member opens the scanner — load it lazily, client-side
+// only, so it doesn't affect this page's first paint.
+const QrScanner = dynamic(
+  () => import("@/components/shared/qr-scanner").then((m) => m.QrScanner),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="mx-auto aspect-square w-full max-w-xs rounded-lg" />,
+  }
+)
 
-const MACRO_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)"]
-
-const MACRO_LABELS: Record<"protein" | "carbs" | "fats", string> = {
-  protein: "Proteína",
-  carbs: "Carbohidratos",
-  fats: "Grasas",
-}
-
-function todayKey() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function useLocalStorageState<T>(key: string, initial: T) {
-  const [value, setValue] = React.useState<T>(initial)
-  const [loaded, setLoaded] = React.useState(false)
-
-  React.useEffect(() => {
-    // Reading localStorage (an external system unavailable during SSR) is
-    // exactly what this effect is for; deferring past the first render also
-    // avoids a hydration mismatch.
-    try {
-      const raw = localStorage.getItem(key)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (raw) setValue(JSON.parse(raw))
-    } catch {
-      // ignore malformed storage
-    }
-    setLoaded(true)
-  }, [key])
-
-  React.useEffect(() => {
-    if (!loaded) return
-    localStorage.setItem(key, JSON.stringify(value))
-  }, [key, value, loaded])
-
-  return [value, setValue] as const
-}
-
-export default function MemberDashboardPage() {
+export default function MemberScannerPage() {
   const user = useAuthStore((s) => s.user)
-  const { data: workoutPlans } = useWorkoutPlans()
-  const { data: nutritionPlans } = useNutritionPlans()
+  const [scanning, setScanning] = React.useState(false)
+  const [scanKey, setScanKey] = React.useState(0)
+  const [lastResult, setLastResult] = React.useState<CheckIn | null>(null)
+  const lastScannedRef = React.useRef<{ code: string; at: number } | null>(null)
+  const selfCheckIn = useSelfCheckIn()
+  const { data: myCheckIns } = useCheckIns(undefined, { pageSize: 60 })
 
-  const todayName = DAY_NAMES[new Date().getDay()]
-  const activePlan = workoutPlans?.items.find((p) => p.is_active)
-  const todaysItems = (activePlan?.items ?? []).filter(
-    (item) => item.day_of_week === todayName
+  // Consecutive days with a granted check-in, counting back from today (or
+  // from yesterday if today's visit hasn't happened yet, so the streak
+  // doesn't reset to 0 the moment the clock passes midnight).
+  const streak = React.useMemo(() => {
+    const grantedDays = new Set(
+      (myCheckIns?.items ?? [])
+        .filter((c) => c.access_granted)
+        .map((c) => c.timestamp.slice(0, 10))
+    )
+    const cursor = new Date()
+    if (!grantedDays.has(cursor.toISOString().slice(0, 10))) {
+      cursor.setDate(cursor.getDate() - 1)
+    }
+    let count = 0
+    while (grantedDays.has(cursor.toISOString().slice(0, 10))) {
+      count++
+      cursor.setDate(cursor.getDate() - 1)
+    }
+    return count
+  }, [myCheckIns])
+
+  const handleScan = React.useCallback(
+    (decodedText: string) => {
+      const now = Date.now()
+      if (
+        lastScannedRef.current &&
+        lastScannedRef.current.code === decodedText &&
+        now - lastScannedRef.current.at < 4000
+      ) {
+        return
+      }
+      lastScannedRef.current = { code: decodedText, at: now }
+
+      selfCheckIn.mutate(decodedText, {
+        onSuccess: (result) => {
+          setLastResult(result)
+          setScanning(false)
+          if (result.access_granted) {
+            toast.success("¡Check-in registrado!")
+          } else {
+            toast.error(result.denial_reason ?? "Acceso denegado")
+          }
+        },
+        onError: (error) => {
+          toast.error(error instanceof ApiError ? error.detail : "No se pudo procesar el código")
+        },
+      })
+    },
+    [selfCheckIn]
   )
-
-  const [completedSets, setCompletedSets] = useLocalStorageState<Record<string, boolean>>(
-    `subgym:workout:${todayKey()}`,
-    {}
-  )
-
-  const activeNutritionPlan = nutritionPlans?.items.find((p) => p.is_active)
-  const [loggedGrams, setLoggedGrams] = useLocalStorageState<{
-    protein: number
-    carbs: number
-    fats: number
-  }>(`subgym:macros:${todayKey()}`, { protein: 0, carbs: 0, fats: 0 })
-
-  const macroData = activeNutritionPlan
-    ? [
-        { name: "Proteína", grams: activeNutritionPlan.protein_g },
-        { name: "Carbohidratos", grams: activeNutritionPlan.carbs_g },
-        { name: "Grasas", grams: activeNutritionPlan.fats_g },
-      ]
-    : []
 
   return (
     <div className="space-y-6">
       <FadeIn>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">
+              Hola, {user?.first_name ?? "campeón"} 👋
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              {new Date().toLocaleDateString("es-BO", { weekday: "long", day: "numeric", month: "long" })}
+            </p>
+          </div>
+          {streak > 0 && (
+            <Badge className="gap-1 border-0 bg-orange-500/15 text-orange-400">
+              <Flame className="size-3" />
+              {streak} día{streak === 1 ? "" : "s"} seguidos
+            </Badge>
+          )}
+        </div>
+      </FadeIn>
+
+      <FadeIn delay={0.02}>
         <Card className="overflow-hidden border-primary/30 bg-gym-radial">
           <CardHeader className="text-center">
-            <CardTitle>Código QR de acceso</CardTitle>
+            <CardTitle className="flex items-center justify-center gap-2">
+              <ScanLine className="size-4 text-primary" />
+              Check-in
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-3">
-            {user && (
-              <div className="rounded-xl bg-white p-3 shadow-lg shadow-primary/20">
-                <QRCodeSVG value={user.id} size={180} />
-              </div>
+            {scanning ? (
+              <>
+                <QrScanner key={scanKey} onScan={handleScan} />
+                <p className="text-xs text-muted-foreground">
+                  Apunta la cámara al QR pegado en la entrada del gimnasio.
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="link" size="sm" onClick={() => setScanKey((k) => k + 1)}>
+                    Reiniciar cámara
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setScanning(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                {lastResult && (
+                  <Badge
+                    variant={lastResult.access_granted ? "default" : "destructive"}
+                    className="gap-1"
+                  >
+                    {lastResult.access_granted ? (
+                      <CheckCircle2 className="size-3" />
+                    ) : (
+                      <XCircle className="size-3" />
+                    )}
+                    {lastResult.access_granted
+                      ? `Entrada registrada — ${new Date(lastResult.timestamp).toLocaleTimeString()}`
+                      : (lastResult.denial_reason ?? "Acceso denegado")}
+                  </Badge>
+                )}
+                <Button onClick={() => setScanning(true)} disabled={selfCheckIn.isPending}>
+                  {selfCheckIn.isPending ? "Verificando…" : "Escanear QR de entrada"}
+                </Button>
+              </>
             )}
-            <p className="text-xs text-muted-foreground">
-              Muestra esto en recepción para hacer check-in
-            </p>
+
+            <details className="w-full text-center">
+              <summary className="cursor-pointer text-xs text-muted-foreground">
+                ¿Prefieres que te registren en recepción?
+              </summary>
+              {user && (
+                <div className="mt-3 flex flex-col items-center gap-2">
+                  <div className="rounded-xl bg-white p-3 shadow-lg shadow-primary/20">
+                    <QRCodeSVG value={user.id} size={140} />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Muestra esto en recepción.</p>
+                </div>
+              )}
+            </details>
           </CardContent>
         </Card>
-      </FadeIn>
-
-      <FadeIn delay={0.08}>
-      <Card>
-        <CardHeader>
-          <CardTitle>Rutina de hoy</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {!activePlan && (
-            <p className="text-sm text-muted-foreground">
-              Todavía no tienes una rutina asignada.
-            </p>
-          )}
-          {activePlan && todaysItems.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              Día de descanso — nada programado hoy.
-            </p>
-          )}
-          {todaysItems.map((item) => (
-            <div key={item.id} className="flex items-center justify-between rounded-md border p-3">
-              <div className="flex items-center gap-3">
-                <Checkbox
-                  checked={!!completedSets[item.id]}
-                  onCheckedChange={(checked) =>
-                    setCompletedSets((prev) => ({ ...prev, [item.id]: checked === true }))
-                  }
-                />
-                <div>
-                  <p
-                    className={
-                      completedSets[item.id]
-                        ? "text-sm font-medium line-through text-muted-foreground"
-                        : "text-sm font-medium"
-                    }
-                  >
-                    {item.exercise.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {item.sets} × {item.reps}
-                    {item.rpe ? ` @ RPE ${item.rpe}` : ""}
-                  </p>
-                </div>
-              </div>
-              {item.rest_seconds ? <RestTimer seconds={item.rest_seconds} /> : null}
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-      </FadeIn>
-
-      <FadeIn delay={0.16}>
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Nutrición de hoy
-            {activeNutritionPlan && (
-              <Badge variant="secondary" className="ml-2">
-                Meta: {activeNutritionPlan.calories} kcal
-              </Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!activeNutritionPlan && (
-            <p className="text-sm text-muted-foreground">
-              Todavía no tienes un plan de nutrición activo.
-            </p>
-          )}
-          {activeNutritionPlan && (
-            <>
-              <div className="h-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={macroData}
-                      dataKey="grams"
-                      nameKey="name"
-                      innerRadius={35}
-                      outerRadius={60}
-                      paddingAngle={2}
-                    >
-                      {macroData.map((_, index) => (
-                        <Cell key={index} fill={MACRO_COLORS[index % MACRO_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip formatter={(value) => `${value} g`} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="space-y-3">
-                {(
-                  [
-                    ["protein", activeNutritionPlan.protein_g] as const,
-                    ["carbs", activeNutritionPlan.carbs_g] as const,
-                    ["fats", activeNutritionPlan.fats_g] as const,
-                  ]
-                ).map(([key, target]) => (
-                  <div key={key} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <Label>{MACRO_LABELS[key]}</Label>
-                      <span className="text-muted-foreground">
-                        {loggedGrams[key]} / {target} g
-                      </span>
-                    </div>
-                    <Progress value={Math.min(100, (loggedGrams[key] / target) * 100)} />
-                    <Input
-                      type="number"
-                      className="mt-1 h-8"
-                      value={loggedGrams[key]}
-                      onChange={(e) =>
-                        setLoggedGrams((prev) => ({
-                          ...prev,
-                          [key]: Number(e.target.value) || 0,
-                        }))
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
       </FadeIn>
     </div>
   )

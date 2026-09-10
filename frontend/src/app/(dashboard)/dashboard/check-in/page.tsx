@@ -2,33 +2,21 @@
 
 import * as React from "react"
 import dynamic from "next/dynamic"
+import { QRCodeSVG } from "qrcode.react"
 import { toast } from "sonner"
-import { motion } from "framer-motion"
-import { CheckCircle2, ScanLine, XCircle } from "lucide-react"
+import { CheckCircle2, QrCode, ScanLine, XCircle } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { FadeIn } from "@/components/shared/motion"
+import { EntityCard } from "@/components/shared/entity-card"
+import { MemberPicker } from "@/components/shared/member-picker"
+import { FadeIn, StaggerGroup, StaggerItem } from "@/components/shared/motion"
 import { ApiError } from "@/lib/api-client"
 import { useCheckIns, useVerifyCheckIn } from "@/hooks/use-checkins"
+import { useCheckinQr, useRegenerateCheckinQr } from "@/hooks/use-gyms"
 import { useUsers } from "@/hooks/use-users"
 
 // html5-qrcode touches `document`/camera APIs at import time, and it's only
@@ -42,11 +30,54 @@ const QrScanner = dynamic(
   }
 )
 
+function EntranceQrCard() {
+  const { data, isLoading } = useCheckinQr()
+  const regenerate = useRegenerateCheckinQr()
+
+  const handleRegenerate = () => {
+    regenerate.mutate(undefined, {
+      onSuccess: () => toast.success("Código regenerado — el póster impreso anterior ya no funciona"),
+      onError: (error) => toast.error(error instanceof ApiError ? error.detail : "No se pudo regenerar el código"),
+    })
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <QrCode className="size-4 text-primary" />
+          QR de entrada
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col items-center gap-3">
+        {isLoading && <Skeleton className="size-44 rounded-lg" />}
+        {data && (
+          <div className="rounded-xl bg-white p-3 shadow-lg shadow-primary/20">
+            <QRCodeSVG value={data.checkin_qr_token} size={176} />
+          </div>
+        )}
+        <p className="max-w-xs text-center text-xs text-muted-foreground">
+          Imprime este código y pégalo en la entrada. Los miembros lo escanean con su
+          celular para hacer check-in sin pasar por recepción.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRegenerate}
+          disabled={regenerate.isPending}
+        >
+          {regenerate.isPending ? "Regenerando…" : "Regenerar código"}
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function CheckInMonitorPage() {
   const [selectedMember, setSelectedMember] = React.useState<string>("")
   const [scanKey, setScanKey] = React.useState(0)
   const lastScannedRef = React.useRef<{ code: string; at: number } | null>(null)
-  const { data: members } = useUsers("MEMBER", 1, 200)
+  const { data: members } = useUsers("MEMBER", 1, 100)
   const { data: checkIns } = useCheckIns(undefined, { live: true })
   const verify = useVerifyCheckIn()
 
@@ -104,60 +135,58 @@ export default function CheckInMonitorPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Monitor de check-in</h1>
       </FadeIn>
 
-      <FadeIn delay={0.05}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ScanLine className="size-4 text-primary" />
-              Verificación de acceso
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="camera">
-              <TabsList>
-                <TabsTrigger value="camera">Cámara</TabsTrigger>
-                <TabsTrigger value="manual">Selección manual</TabsTrigger>
-              </TabsList>
-              <TabsContent value="camera" className="pt-4">
-                <QrScanner key={scanKey} onScan={handleCameraScan} />
-                <p className="mt-2 text-center text-xs text-muted-foreground">
-                  Apunta la cámara al código QR que el miembro muestra en su panel.
-                </p>
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="mx-auto mt-1 block"
-                  onClick={() => setScanKey((k) => k + 1)}
-                >
-                  Reiniciar cámara
-                </Button>
-              </TabsContent>
-              <TabsContent value="manual" className="pt-4">
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <Select
-                    value={selectedMember}
-                    onValueChange={(value) => setSelectedMember(value ?? "")}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <FadeIn delay={0.05}>
+          <EntranceQrCard />
+        </FadeIn>
+
+        <FadeIn delay={0.08}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ScanLine className="size-4 text-primary" />
+                Verificación manual
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-3 text-xs text-muted-foreground">
+                Los miembros ya pueden auto-registrar su entrada escaneando el QR de la
+                puerta. Usa esto solo como respaldo (celular sin cámara, sin batería, etc).
+              </p>
+              <Tabs defaultValue="camera">
+                <TabsList>
+                  <TabsTrigger value="camera">Cámara</TabsTrigger>
+                  <TabsTrigger value="manual">Selección manual</TabsTrigger>
+                </TabsList>
+                <TabsContent value="camera" className="pt-4">
+                  <QrScanner key={scanKey} onScan={handleCameraScan} />
+                  <p className="mt-2 text-center text-xs text-muted-foreground">
+                    Apunta la cámara al código QR que el miembro muestra en su panel.
+                  </p>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="mx-auto mt-1 block"
+                    onClick={() => setScanKey((k) => k + 1)}
                   >
-                    <SelectTrigger className="w-full sm:w-80">
-                      <SelectValue placeholder="Selecciona un miembro" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(members?.items ?? []).map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.first_name} {m.last_name} ({m.email})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={handleManualScan} disabled={!selectedMember || verify.isPending}>
-                    {verify.isPending ? "Verificando…" : "Verificar acceso"}
+                    Reiniciar cámara
                   </Button>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </FadeIn>
+                </TabsContent>
+                <TabsContent value="manual" className="pt-4">
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <div className="min-w-0 flex-1">
+                      <MemberPicker value={selectedMember} onChange={setSelectedMember} />
+                    </div>
+                    <Button onClick={handleManualScan} disabled={!selectedMember || verify.isPending}>
+                      {verify.isPending ? "Verificando…" : "Verificar acceso"}
+                    </Button>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </FadeIn>
+      </div>
 
       <FadeIn delay={0.1}>
         <Card>
@@ -165,51 +194,36 @@ export default function CheckInMonitorPage() {
             <CardTitle>Actividad en vivo</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Hora</TableHead>
-                  <TableHead>Miembro</TableHead>
-                  <TableHead>Resultado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(checkIns?.items ?? []).map((c, i) => (
-                  <motion.tr
-                    key={c.id}
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25, delay: Math.min(i * 0.03, 0.2) }}
-                    className="border-b transition-colors hover:bg-muted/50"
-                  >
-                    <TableCell className="text-muted-foreground">
-                      {new Date(c.timestamp).toLocaleTimeString()}
-                    </TableCell>
-                    <TableCell className="font-medium">{memberName(c.user_id)}</TableCell>
-                    <TableCell>
-                      {c.access_granted ? (
-                        <Badge className="gap-1">
-                          <CheckCircle2 className="size-3" />
-                          Concedido
-                        </Badge>
-                      ) : (
-                        <Badge variant="destructive" className="gap-1">
-                          <XCircle className="size-3" />
-                          {c.denial_reason ?? "Denegado"}
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </motion.tr>
-                ))}
-                {(checkIns?.items?.length ?? 0) === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center text-muted-foreground">
-                      Todavía no hay check-ins hoy.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+            <StaggerGroup className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {(checkIns?.items ?? []).map((c) => (
+                <StaggerItem key={c.id}>
+                  <EntityCard alert={!c.access_granted} contentClassName="gap-1.5 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{memberName(c.user_id)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(c.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    {c.access_granted ? (
+                      <Badge className="w-fit gap-1">
+                        <CheckCircle2 className="size-3" />
+                        Concedido
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive" className="w-fit gap-1">
+                        <XCircle className="size-3" />
+                        {c.denial_reason ?? "Denegado"}
+                      </Badge>
+                    )}
+                  </EntityCard>
+                </StaggerItem>
+              ))}
+              {(checkIns?.items?.length ?? 0) === 0 && (
+                <p className="text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
+                  Todavía no hay check-ins hoy.
+                </p>
+              )}
+            </StaggerGroup>
           </CardContent>
         </Card>
       </FadeIn>

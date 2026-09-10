@@ -5,8 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { toast } from "sonner"
-import { motion } from "framer-motion"
-import { Pencil, Plus } from "lucide-react"
+import { Pencil, Plus, Tag } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -30,18 +29,15 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { FadeIn } from "@/components/shared/motion"
+import { EntityCard } from "@/components/shared/entity-card"
+import { FadeIn, StaggerGroup, StaggerItem } from "@/components/shared/motion"
 import { ApiError } from "@/lib/api-client"
+import { activeBadgeClass } from "@/lib/badge-colors"
+import { formatCurrency } from "@/lib/currency"
+import { applicablePromotion, discountedPrice } from "@/lib/promotions"
 import type { Membership } from "@/lib/types"
 import { useCreateMembership, useMemberships, useUpdateMembership } from "@/hooks/use-memberships"
+import { usePromotions } from "@/hooks/use-promotions"
 
 const membershipSchema = z.object({
   name: z.string().min(1),
@@ -91,7 +87,7 @@ function MembershipFormFields({
           name="price"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Precio (USD)</FormLabel>
+              <FormLabel>Precio (Bs)</FormLabel>
               <FormControl>
                 <Input type="number" step="0.01" {...field} value={field.value as number} />
               </FormControl>
@@ -186,6 +182,7 @@ function EditMembershipDialog({ plan }: { plan: Membership }) {
 export default function MembershipsPage() {
   const [open, setOpen] = React.useState(false)
   const { data, isLoading } = useMemberships()
+  const { data: promotions } = usePromotions(1, 100)
   const createMembership = useCreateMembership()
   const updateMembership = useUpdateMembership()
 
@@ -243,43 +240,48 @@ export default function MembershipsPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
+                  <Skeleton key={i} className="h-32 w-full" />
                 ))}
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Precio</TableHead>
-                    <TableHead>Duración</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {plans.map((plan, i) => (
-                    <motion.tr
-                      key={plan.id}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25, delay: Math.min(i * 0.04, 0.3) }}
-                      className="border-b transition-colors hover:bg-muted/50"
-                    >
-                      <TableCell className="font-medium">{plan.name}</TableCell>
-                      <TableCell>${Number(plan.price).toFixed(2)}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {plan.duration_days} días
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={plan.is_active ? "default" : "secondary"}>
-                          {plan.is_active ? "Activo" : "Inactivo"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
+              <StaggerGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {plans.map((plan) => {
+                  const promo = applicablePromotion(promotions?.items ?? [], plan.id)
+                  return (
+                    <StaggerItem key={plan.id}>
+                      <EntityCard>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate font-semibold">{plan.name}</p>
+                          <Badge className={activeBadgeClass(plan.is_active)}>
+                            {plan.is_active ? "Activo" : "Inactivo"}
+                          </Badge>
+                        </div>
+
+                        <div>
+                          {promo ? (
+                            <div className="flex flex-col gap-1">
+                              <span className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground line-through">
+                                  {formatCurrency(plan.price)}
+                                </span>
+                                <span className="font-medium">
+                                  {formatCurrency(discountedPrice(Number(plan.price), promo))}
+                                </span>
+                              </span>
+                              <Badge variant="outline" className="w-fit gap-1 text-[10px]">
+                                <Tag className="size-3" />
+                                {promo.name}
+                              </Badge>
+                            </div>
+                          ) : (
+                            <p className="font-medium">{formatCurrency(plan.price)}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground">{plan.duration_days} días</p>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-1 border-t pt-3">
                           <EditMembershipDialog plan={plan} />
                           <Button
                             variant="ghost"
@@ -294,18 +296,16 @@ export default function MembershipsPage() {
                             {plan.is_active ? "Desactivar" : "Reactivar"}
                           </Button>
                         </div>
-                      </TableCell>
-                    </motion.tr>
-                  ))}
-                  {plans.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        Todavía no hay planes.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                      </EntityCard>
+                    </StaggerItem>
+                  )
+                })}
+                {plans.length === 0 && (
+                  <p className="text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
+                    Todavía no hay planes.
+                  </p>
+                )}
+              </StaggerGroup>
             )}
           </CardContent>
         </Card>

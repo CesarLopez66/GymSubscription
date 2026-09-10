@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import Enum, ForeignKey, Numeric, String
+from sqlalchemy import Enum, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,9 +32,24 @@ class Payment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=True,
         index=True,
     )
+    # Set only on a member-submitted claim (create_self_payment_claim), so
+    # approve_payment knows which plan to subscribe them to without trusting
+    # a value re-typed by whichever admin reviews it later.
+    membership_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("memberships.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     processed_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -51,9 +66,14 @@ class Payment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), default="USD", nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="BOB", nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Base64 data URI of the member's transfer receipt, set when the member
+    # submits their own PENDING payment claim (create_self_payment_claim)
+    # instead of an admin recording an already-verified payment directly.
+    proof_image: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user: Mapped["User | None"] = relationship(foreign_keys=[user_id])
     subscription: Mapped["MemberSubscription | None"] = relationship(foreign_keys=[subscription_id])

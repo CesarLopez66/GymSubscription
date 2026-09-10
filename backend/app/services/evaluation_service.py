@@ -1,12 +1,13 @@
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps.pagination import PaginationParams
+from app.deps.pagination import PaginationParams, paginate
 from app.models.evaluation import PhysicalEvaluation
 from app.models.user import User
 from app.schemas.evaluation import EvaluationCreate, EvaluationUpdate
+from app.services import notification_service
 
 
 class EvaluationNotFoundError(Exception):
@@ -34,6 +35,15 @@ async def create_evaluation(
     db.add(evaluation)
     await db.flush()
     await db.refresh(evaluation)
+    await notification_service.create_notification(
+        db,
+        gym_id=gym_id,
+        user_id=data.user_id,
+        kind="evaluation_recorded",
+        title="Nueva evaluación física",
+        body="Tu entrenador registró una nueva evaluación física — revisa tus resultados.",
+        related_id=evaluation.id,
+    )
     return evaluation
 
 
@@ -57,20 +67,21 @@ async def list_evaluations(
     pagination: PaginationParams,
     *,
     user_id: uuid.UUID | None = None,
+    branch_id: uuid.UUID | None = None,
 ) -> tuple[list[PhysicalEvaluation], int]:
     base_query = select(PhysicalEvaluation).where(PhysicalEvaluation.gym_id == gym_id)
     if user_id is not None:
         base_query = base_query.where(PhysicalEvaluation.user_id == user_id)
+    if branch_id is not None:
+        base_query = base_query.where(PhysicalEvaluation.branch_id == branch_id)
 
-    count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
-    total = count_result.scalar_one()
-
-    result = await db.execute(
-        base_query.order_by(PhysicalEvaluation.evaluated_at.desc(), PhysicalEvaluation.id.desc())
-        .offset(pagination.offset)
-        .limit(pagination.limit)
+    return await paginate(
+        db,
+        base_query,
+        PhysicalEvaluation.evaluated_at.desc(),
+        PhysicalEvaluation.id.desc(),
+        pagination=pagination,
     )
-    return list(result.scalars().all()), total
 
 
 async def update_evaluation(

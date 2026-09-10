@@ -7,18 +7,30 @@ from app.core.middleware import TenantHint, get_tenant_hint
 from app.deps.auth import get_current_active_user
 from app.deps.rate_limit import rate_limit
 from app.models.user import User
-from app.schemas.auth import LoginRequest, MeResponse, RefreshRequest, TokenPair
+from app.schemas.auth import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    MeResponse,
+    RefreshRequest,
+    ResetPasswordRequest,
+    TokenPair,
+)
 from app.services.auth_service import (
     AuthError,
     authenticate_user,
     issue_token_pair,
     refresh_access_token,
+    request_password_reset,
+    reset_password,
     revoke_all_sessions,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _login_rate_limit = rate_limit("login", settings.RATE_LIMIT_LOGIN)
+# Same shape as login's — this is exactly the kind of endpoint someone could
+# hammer to spam reset emails (or, today, spam log lines) at an account.
+_forgot_password_rate_limit = rate_limit("forgot_password", settings.RATE_LIMIT_LOGIN)
 
 
 @router.post("/token", response_model=TokenPair, dependencies=[Depends(_login_rate_limit)])
@@ -47,6 +59,34 @@ async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)) -
         return await refresh_access_token(db, refresh_token=payload.refresh_token)
     except AuthError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+
+
+@router.post(
+    "/forgot-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(_forgot_password_rate_limit)],
+)
+async def forgot_password(
+    payload: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    tenant_hint: TenantHint = Depends(get_tenant_hint),
+) -> None:
+    """Always 204s, whether or not the email matched an account — the
+    response can't be used to check which emails exist. If a real provider
+    isn't configured, the reset link only reaches the backend log (see
+    auth_service.request_password_reset)."""
+    gym_subdomain = payload.gym_subdomain or tenant_hint.subdomain
+    await request_password_reset(db, email=payload.email, gym_subdomain=gym_subdomain)
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password_endpoint(
+    payload: ResetPasswordRequest, db: AsyncSession = Depends(get_db)
+) -> None:
+    try:
+        await reset_password(db, token=payload.token, new_password=payload.new_password)
+    except AuthError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)

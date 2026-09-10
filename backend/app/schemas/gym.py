@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -27,11 +27,49 @@ class GymUpdate(BaseModel):
     address: str | None = None
 
 
+class GymPaymentQrUpdate(BaseModel):
+    payment_qr_image: str | None = Field(default=None, max_length=2_000_000)
+
+
+class GymCheckinQrRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    checkin_qr_token: str
+
+
+class GymSuspendRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class GymAuditLogRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    actor_id: uuid.UUID | None
+    action: str
+    reason: str | None
+    created_at: datetime
+
+
+class GymPublicRead(BaseModel):
+    """Minimal, unauthenticated-safe projection for the login screen's gym
+    picker — deliberately excludes everything else on Gym (contact info,
+    plan tier, QR images, timestamps) so anonymous visitors only ever see
+    the two fields they need to pick a tenant."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    name: str
+    subdomain: str
+
+
 class GymRead(GymBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     status: GymStatus
     plan_tier: SaaSPlanTier
+    payment_qr_image: str | None = None
+    trial_ends_at: date | None = None
     created_at: datetime
     updated_at: datetime

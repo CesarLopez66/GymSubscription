@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 
 import { api } from "@/lib/api-client"
-import type { TokenPair, User } from "@/lib/types"
+import type { TokenPair, User, UserRole } from "@/lib/types"
 import { useAuthStore } from "@/store/auth-store"
 
 export interface LoginInput {
@@ -25,8 +25,32 @@ export function useLogin() {
     },
     onSuccess: ({ tokens, user }) => {
       setSession(tokens, user)
-      router.push(roleHome(user.role))
+      router.push(roleHome(user.roles))
     },
+  })
+}
+
+export interface ForgotPasswordInput {
+  email: string
+  gym_subdomain?: string
+}
+
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (input: ForgotPasswordInput) =>
+      api.post<void>("/auth/forgot-password", input, { skipAuth: true }),
+  })
+}
+
+export interface ResetPasswordInput {
+  token: string
+  new_password: string
+}
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: (input: ResetPasswordInput) =>
+      api.post<void>("/auth/reset-password", input, { skipAuth: true }),
   })
 }
 
@@ -61,18 +85,17 @@ export function useCurrentUser() {
   })
 }
 
-export function roleHome(role: User["role"]): string {
-  switch (role) {
-    case "SUPERADMIN":
-      return "/superadmin"
-    case "GYM_ADMIN":
-      return "/dashboard"
-    case "TRAINER":
-    case "NUTRITIONIST":
-      return "/trainer"
-    case "MEMBER":
-      return "/member"
-    default:
-      return "/login"
-  }
+// A staff member can hold more than one role at once (e.g. GYM_ADMIN +
+// TRAINER) — this picks a single landing area by priority when several of
+// their roles would otherwise send them somewhere different.
+const ROLE_HOME_PRIORITY: { role: UserRole; href: string }[] = [
+  { role: "SUPERADMIN", href: "/superadmin" },
+  { role: "GYM_ADMIN", href: "/dashboard" },
+  { role: "TRAINER", href: "/trainer" },
+  { role: "NUTRITIONIST", href: "/trainer" },
+  { role: "MEMBER", href: "/member" },
+]
+
+export function roleHome(roles: User["roles"]): string {
+  return ROLE_HOME_PRIORITY.find((entry) => roles.includes(entry.role))?.href ?? "/login"
 }
