@@ -13,6 +13,7 @@ from app.core.security import TokenType, decode_token
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.auth import TokenPayload
+from app.services.gym_service import is_gym_blocked
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -81,6 +82,22 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Checked on every request, not just at login — an access token stays
+    # valid for ACCESS_TOKEN_EXPIRE_MINUTES after issuance, so without this a
+    # gym suspended mid-session would keep working until that token expired
+    # on its own. SUPERADMIN (gym_id=None) is never gated by this.
+    if user.gym_id is not None and await is_gym_blocked(db, user.gym_id):
+        # A dedicated header, not the (translatable, editable) detail
+        # message, is what the frontend keys off of to tell this apart from
+        # an ordinary "you can't do that" 403 and react to it specially
+        # (force logout instead of just toasting the message) — see
+        # api-client.ts.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El gimnasio de esta cuenta está suspendido. Contacta al soporte de la plataforma.",
+            headers={"X-Gym-Blocked": "true"},
+        )
+
     # Catches a misconfigured client/proxy pointing at the wrong tenant: the
     # header is never trusted to grant access on its own (RLS context above
     # was already derived purely from the JWT), only to flag a mismatch.
@@ -124,3 +141,39 @@ async def get_tenant_gym_id(current_user: User = Depends(get_current_active_user
             detail="Esta acción requiere un usuario asignado a un gimnasio",
         )
     return current_user.gym_id
+
+
+# Roles that operate across every branch of their gym — never confined by
+# get_effective_branch_id below.
+_UNSCOPED_ROLES = {UserRole.SUPERADMIN, UserRole.GYM_ADMIN}
+# Roles whose access is confined to their own branch_id.
+_BRANCH_SCOPED_ROLES = {UserRole.BRANCH_MANAGER, UserRole.TRAINER, UserRole.NUTRITIONIST}
+
+
+async def get_effective_branch_id(
+    current_user: User = Depends(get_current_active_user),
+) -> uuid.UUID | None:
+    """None means this request has no branch restriction (GYM_ADMIN/SUPERADMIN,
+    or a role this mechanism doesn't govern at all, like a bare MEMBER — those
+    stay governed by whatever inline self-access check their own endpoint
+    already does). Any other value is the single branch this request is
+    confined to — callers combine it with a client-supplied branch_id filter
+    as `effective_branch if effective_branch is not None else branch_id`, and
+    force it onto anything they create.
+
+    Deliberately never returns None for a branch-scoped role that simply
+    hasn't been assigned a branch yet — that would silently grant them
+    gym-wide access instead of the empty-until-assigned state it should be,
+    so it 403s instead.
+    """
+    roles = set(current_user.roles)
+    if not roles.isdisjoint(_UNSCOPED_ROLES):
+        return None
+    if roles.isdisjoint(_BRANCH_SCOPED_ROLES):
+        return None
+    if current_user.branch_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tu cuenta no tiene una sucursal asignada. Contacta a un administrador del gimnasio.",
+        )
+    return current_user.branch_id

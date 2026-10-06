@@ -1,4 +1,10 @@
-import type { FitnessGoal, GymStatus, PaymentStatus, SubscriptionStatus } from "@/lib/types"
+import type {
+  FitnessGoal,
+  GymStatus,
+  PaymentStatus,
+  SubscriptionRequestStatus,
+  SubscriptionStatus,
+} from "@/lib/types"
 
 // Tailwind classes for colored status/category badges — used with the plain
 // Badge component (`<Badge className={...}>`) instead of its built-in
@@ -39,6 +45,12 @@ export const SUBSCRIPTION_STATUS_BADGE_CLASSES: Record<SubscriptionStatus, strin
   PENDING: amber,
   EXPIRED: red,
   CANCELLED: zinc,
+}
+
+export const SUBSCRIPTION_REQUEST_STATUS_BADGE_CLASSES: Record<SubscriptionRequestStatus, string> = {
+  APPROVED: emerald,
+  PENDING: amber,
+  REJECTED: red,
 }
 
 export const FITNESS_GOAL_BADGE_CLASSES: Record<FitnessGoal, string> = {

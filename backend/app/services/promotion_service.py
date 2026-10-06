@@ -10,6 +10,7 @@ from app.models.enums import DiscountType
 from app.models.membership import Membership
 from app.models.promotion import Promotion
 from app.schemas.promotion import PromotionCreate, PromotionUpdate, validate_promotion_fields
+from app.services.db_helpers import get_or_404
 
 
 class PromotionNotFoundError(Exception):
@@ -29,11 +30,14 @@ async def _ensure_membership_in_gym(
 ) -> None:
     if membership_id is None:
         return
-    result = await db.execute(
-        select(Membership).where(Membership.id == membership_id, Membership.gym_id == gym_id)
+    await get_or_404(
+        db,
+        Membership,
+        InvalidPromotionMembershipError,
+        "Plan de membresía no encontrado en este gimnasio",
+        id=membership_id,
+        gym_id=gym_id,
     )
-    if result.scalar_one_or_none() is None:
-        raise InvalidPromotionMembershipError("Plan de membresía no encontrado en este gimnasio")
 
 
 async def create_promotion(db: AsyncSession, gym_id: uuid.UUID, data: PromotionCreate) -> Promotion:
@@ -47,13 +51,9 @@ async def create_promotion(db: AsyncSession, gym_id: uuid.UUID, data: PromotionC
 
 
 async def get_promotion(db: AsyncSession, gym_id: uuid.UUID, promotion_id: uuid.UUID) -> Promotion:
-    result = await db.execute(
-        select(Promotion).where(Promotion.id == promotion_id, Promotion.gym_id == gym_id)
+    return await get_or_404(
+        db, Promotion, PromotionNotFoundError, "Promoción no encontrada", id=promotion_id, gym_id=gym_id
     )
-    promotion = result.scalar_one_or_none()
-    if promotion is None:
-        raise PromotionNotFoundError("Promoción no encontrada")
-    return promotion
 
 
 async def list_promotions(

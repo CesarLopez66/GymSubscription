@@ -3,20 +3,24 @@ import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/r
 import { api } from "@/lib/api-client"
 import type { CheckIn, Page } from "@/lib/types"
 
-export function checkInsQueryOptions(userId?: string, pageSize = 25) {
+export function checkInsQueryOptions(userId?: string, pageSize = 25, branchId?: string) {
   return queryOptions({
-    queryKey: ["check-ins", userId, pageSize] as const,
+    queryKey: ["check-ins", userId, pageSize, branchId] as const,
     queryFn: () => {
       const params = new URLSearchParams({ page: "1", page_size: String(pageSize) })
       if (userId) params.set("user_id", userId)
+      if (branchId) params.set("branch_id", branchId)
       return api.get<Page<CheckIn>>(`/check-in?${params.toString()}`)
     },
   })
 }
 
-export function useCheckIns(userId?: string, opts?: { live?: boolean; pageSize?: number }) {
+export function useCheckIns(
+  userId?: string,
+  opts?: { live?: boolean; pageSize?: number; branchId?: string }
+) {
   return useQuery({
-    ...checkInsQueryOptions(userId, opts?.pageSize ?? 25),
+    ...checkInsQueryOptions(userId, opts?.pageSize ?? 25, opts?.branchId),
     refetchInterval: opts?.live ? 5_000 : false,
   })
 }

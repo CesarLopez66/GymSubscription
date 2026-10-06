@@ -1,56 +1,34 @@
 "use client"
 
 import * as React from "react"
-import {
-  Bar,
-  BarChart,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
-import {
-  AlertTriangle,
-  Banknote,
-  Building2,
-  CalendarCheck,
-  FileSpreadsheet,
-  FileText,
-  Receipt,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react"
+import Link from "next/link"
+import { ChevronRight, Download, FileSpreadsheet, FileText } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { GymFilter } from "@/components/shared/gym-filter"
 import { FadeIn } from "@/components/shared/motion"
-import { PageHero } from "@/components/shared/page-hero"
 import { LoadingOverlay } from "@/components/shared/refetching-indicator"
-import { StatCard } from "@/components/shared/stat-card"
-import { useAuthStore } from "@/store/auth-store"
 import { useSuperAdminFilterStore } from "@/store/superadmin-filter-store"
-import { GYM_STATUS_BADGE_CLASSES, riskBadgeClass } from "@/lib/badge-colors"
 import { formatCurrency } from "@/lib/currency"
-import { GYM_STATUS_LABELS, PLAN_TIER_LABELS, ROLE_LABELS } from "@/lib/labels"
+import { formatToday } from "@/lib/format"
+import { GYM_STATUS_LABELS, PLAN_TIER_LABELS } from "@/lib/labels"
 import { downloadPlatformReportCsv, downloadPlatformReportPdf } from "@/lib/platform-report"
-import type { UserRole } from "@/lib/types"
+import type { PlatformOverview, SaaSPlanTier } from "@/lib/types"
+import { cn } from "@/lib/utils"
+import { useSubscriptionPayments } from "@/hooks/use-gym-subscriptions"
 import { useSuperAdminOverview } from "@/hooks/use-superadmin"
-
-const CHART_COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-]
+import { GymPerformanceTable } from "./gym-performance-table"
+import { RevenueChart } from "./revenue-chart"
 
 const RANGE_OPTIONS = [
   { value: "7", label: "7 días" },
@@ -59,12 +37,11 @@ const RANGE_OPTIONS = [
   { value: "365", label: "1 año" },
 ]
 
-// SUPERADMIN is intentionally excluded: it's never tied to a gym_id, so it
-// never appears in a per-gym breakdown.
-const GYM_ROLE_ORDER: UserRole[] = ["GYM_ADMIN", "TRAINER", "NUTRITIONIST", "MEMBER"]
+const PLAN_TIERS: SaaSPlanTier[] = ["FREE", "BASIC", "PRO", "ENTERPRISE"]
+
+const panelClass = "rounded-2xl bg-card/75 p-5 shadow-lg shadow-black/20 ring-1 ring-foreground/10 backdrop-blur-md"
 
 export default function SuperAdminPage() {
-  const user = useAuthStore((s) => s.user)
   const [range, setRange] = React.useState("30")
   const gymId = useSuperAdminFilterStore((s) => s.gymId)
   const {
@@ -73,346 +50,351 @@ export default function SuperAdminPage() {
     isLoading: overviewLoading,
   } = useSuperAdminOverview(Number(range), gymId)
 
-  const gymStatusData = overview
-    ? [
-        { name: GYM_STATUS_LABELS.ACTIVE, value: overview.gyms_active },
-        { name: GYM_STATUS_LABELS.TRIAL, value: overview.gyms_trial },
-        { name: GYM_STATUS_LABELS.SUSPENDED, value: overview.gyms_suspended },
-        { name: GYM_STATUS_LABELS.CANCELLED, value: overview.gyms_cancelled },
-      ].filter((d) => d.value > 0)
-    : []
-
-  // Users by role, per gym — replaces a single platform-wide bar with one
-  // stacked bar per tenant, since every metric on this page needs to be
-  // traceable back to a specific paying gym.
-  const usersByGymData = (overview?.gyms_breakdown ?? []).map((g) => ({
-    gym: g.gym_name,
-    ...g.users_by_role,
-  }))
-
-  // revenue_by_day comes as (date, gym) rows — pivot into one row per date
-  // with a column per gym, so each tenant gets its own series on the chart
-  // instead of a single blended platform total.
-  const gymNames = React.useMemo(
-    () => Array.from(new Set((overview?.revenue_by_day ?? []).map((d) => d.gym_name))),
-    [overview]
-  )
-  const revenueByDayData = React.useMemo(() => {
-    const byDate = new Map<string, Record<string, number | string>>()
-    for (const d of overview?.revenue_by_day ?? []) {
-      const row =
-        byDate.get(d.date) ??
-        ({
-          date: new Date(d.date).toLocaleDateString("es-BO", { day: "2-digit", month: "2-digit" }),
-        } as Record<string, number | string>)
-      row[d.gym_name] = d.amount
-      byDate.set(d.date, row)
-    }
-    // A gym with no revenue on a given day is simply absent from that row —
-    // left as `undefined`, a stacked Area treats it as a break in the line
-    // instead of zero, so the chart shows floating disconnected segments
-    // rather than a continuous (flat-at-zero) area. Zero-fill every gym for
-    // every date before handing the data to recharts.
-    const rows = Array.from(byDate.values())
-    for (const row of rows) {
-      for (const name of gymNames) {
-        if (!(name in row)) row[name] = 0
-      }
-    }
-    return rows
-  }, [overview, gymNames])
-
-  // Payments (and therefore revenue_by_day points) land unevenly across a
-  // wide range — recharts' automatic label-fitting on a sparse categorical
-  // axis picks an arbitrary-looking subset of ticks otherwise (a run of
-  // close dates, then a big unlabeled stretch). A fixed step keeps at most
-  // ~7 evenly-spaced labels no matter how the underlying dates are spread.
-  const xAxisInterval = Math.max(0, Math.ceil(revenueByDayData.length / 7) - 1)
-
-  const gymsBreakdown = overview?.gyms_breakdown ?? []
+  const breakdown = overview?.gyms_breakdown ?? []
+  const selectedGym = gymId ? breakdown.find((g) => g.gym_id === gymId) : undefined
+  const rangeLabel = RANGE_OPTIONS.find((o) => o.value === range)?.label ?? `${range} días`
 
   return (
     <div className="space-y-6">
       <LoadingOverlay show={overviewFetching && !overviewLoading} />
-      <PageHero
-        title={`Hola, ${user?.first_name ?? "Super admin"} 👋`}
-        subtitle="Vista general de la plataforma"
-      />
 
       <FadeIn>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <GymFilter />
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-[26px] leading-tight font-semibold tracking-tight">
+              {selectedGym ? selectedGym.gym_name : "Plataforma"}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {formatToday()} · últimos {rangeLabel === "1 año" ? "12 meses" : rangeLabel}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <Tabs value={range} onValueChange={(v) => v && setRange(v)}>
-              <TabsList>
+              <TabsList className="h-9!" aria-label="Periodo">
                 {RANGE_OPTIONS.map((opt) => (
-                  <TabsTrigger key={opt.value} value={opt.value}>
+                  <TabsTrigger key={opt.value} value={opt.value} className="px-3">
                     {opt.label}
                   </TabsTrigger>
                 ))}
               </TabsList>
             </Tabs>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!overview}
-              onClick={() => overview && downloadPlatformReportPdf(overview)}
-            >
-              <FileText className="size-4" />
-              Descargar PDF
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!overview}
-              onClick={() => overview && downloadPlatformReportCsv(overview)}
-            >
-              <FileSpreadsheet className="size-4" />
-              Descargar Excel
-            </Button>
+            <GymFilter />
+            <ReportDialog overview={overview} />
           </div>
         </div>
       </FadeIn>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Ingresos"
-          value={overview?.period_revenue}
-          icon={Banknote}
-          format={formatCurrency}
-          delay={0}
-        />
-        <StatCard
-          label="Pagos completados"
-          value={overview?.period_payments_count}
-          icon={Receipt}
-          delay={0.05}
-        />
-        <StatCard
-          label="Check-ins"
-          value={overview?.period_checkins}
-          icon={CalendarCheck}
-          delay={0.1}
-        />
-      </div>
+      {overviewLoading || !overview ? (
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-32 rounded-2xl" />
+          ))}
+        </div>
+      ) : (
+        <>
+          <FadeIn delay={0.02}>
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+              <Kpi
+                label="Ingresos de la plataforma"
+                value={formatCurrency(overview.platform_revenue_period)}
+                detail={`Suscripciones de gimnasios · ${rangeLabel}`}
+              />
+              <Kpi
+                label="Gimnasios activos"
+                value={String(overview.gyms_active)}
+                suffix={`de ${overview.gyms_total}`}
+                detail={[
+                  overview.gyms_trial && `${overview.gyms_trial} en prueba`,
+                  overview.gyms_suspended && `${overview.gyms_suspended} suspendido${overview.gyms_suspended === 1 ? "" : "s"}`,
+                  overview.gyms_cancelled && `${overview.gyms_cancelled} cancelado${overview.gyms_cancelled === 1 ? "" : "s"}`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "Todos al día"}
+              />
+              <Kpi
+                label="Membresías activas"
+                value={overview.active_subscriptions.toLocaleString("es-BO")}
+                detail={`${overview.users_total.toLocaleString("es-BO")} usuarios en total`}
+              />
+              <Kpi
+                label="Check-ins"
+                value={overview.period_checkins.toLocaleString("es-BO")}
+                detail={`En los últimos ${rangeLabel === "1 año" ? "12 meses" : rangeLabel}`}
+              />
+            </div>
+          </FadeIn>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <FadeIn delay={0.05} className="xl:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Ingresos por gimnasio ({range === "365" ? "1 año" : `${range} días`})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {revenueByDayData.length > 0 ? (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={revenueByDayData} margin={{ left: 4, right: 4 }}>
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                        axisLine={false}
-                        tickLine={false}
-                        interval={xAxisInterval}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                        width={40}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ fill: "var(--muted)", opacity: 0.3 }} />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      {gymNames.map((name, index) => (
-                        <Bar
-                          key={name}
-                          dataKey={name}
-                          name={name}
-                          fill={CHART_COLORS[index % CHART_COLORS.length]}
-                          radius={[3, 3, 0, 0]}
-                          maxBarSize={28}
-                        />
-                      ))}
-                    </BarChart>
-                  </ResponsiveContainer>
+          <FadeIn delay={0.04}>
+            <div className="flex flex-wrap gap-3">
+              <section className={cn(panelClass, "min-w-0 flex-[2_1_480px] space-y-4")}>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="font-heading text-lg font-medium">Cobros de los gimnasios</h2>
+                  <span className="text-[13px] text-muted-foreground">
+                    Total {formatCurrency(overview.period_revenue)} · pagos de miembros completados
+                  </span>
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Todavía no hay ingresos en este período.</p>
-              )}
-            </CardContent>
-          </Card>
-        </FadeIn>
+                <RevenueChart data={overview.revenue_by_day} days={Number(range)} />
+              </section>
+              <AttentionPanel overview={overview} />
+            </div>
+          </FadeIn>
 
-        <FadeIn delay={0.1}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Gimnasios por estado</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {gymStatusData.length > 0 ? (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={gymStatusData}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={2}
-                      >
-                        {gymStatusData.map((_, index) => (
-                          <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <RechartsTooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Todavía no hay gimnasios.</p>
-              )}
-            </CardContent>
-          </Card>
-        </FadeIn>
+          <FadeIn delay={0.06}>
+            <div className="flex flex-wrap gap-3">
+              <GymStatusBar overview={overview} />
+              {!selectedGym && <PlanTiers overview={overview} />}
+            </div>
+          </FadeIn>
 
-        <FadeIn delay={0.15} className="xl:col-span-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Usuarios por gimnasio</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {usersByGymData.length > 0 ? (
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={usersByGymData} margin={{ left: 4, right: 4 }}>
-                      <XAxis
-                        dataKey="gym"
-                        tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        allowDecimals={false}
-                        tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
-                        width={30}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <RechartsTooltip />
-                      {GYM_ROLE_ORDER.map((role, index) => (
-                        <Bar
-                          key={role}
-                          dataKey={role}
-                          name={ROLE_LABELS[role]}
-                          stackId="users"
-                          fill={CHART_COLORS[index % CHART_COLORS.length]}
-                          radius={index === GYM_ROLE_ORDER.length - 1 ? [6, 6, 0, 0] : undefined}
-                          maxBarSize={80}
-                        />
-                      ))}
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Todavía no hay usuarios registrados.</p>
-              )}
-            </CardContent>
-          </Card>
-        </FadeIn>
-      </div>
-
-      <FadeIn delay={0.2}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="size-4" />
-              Desempeño por gimnasio ({range === "365" ? "1 año" : `${range} días`})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
-            {gymsBreakdown.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Gimnasio</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Plan</TableHead>
-                    <TableHead className="text-right">Usuarios</TableHead>
-                    {GYM_ROLE_ORDER.map((role) => (
-                      <TableHead key={role} className="text-right">
-                        {ROLE_LABELS[role]}
-                      </TableHead>
-                    ))}
-                    <TableHead className="text-right">Suscripciones activas</TableHead>
-                    <TableHead className="text-right">Ingresos</TableHead>
-                    <TableHead className="text-right">Pagos</TableHead>
-                    <TableHead className="text-right">Check-ins</TableHead>
-                    <TableHead className="text-right">Sucursales</TableHead>
-                    <TableHead>Riesgo</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {gymsBreakdown
-                    .slice()
-                    .sort((a, b) => b.revenue_period - a.revenue_period)
-                    .map((g) => (
-                      <TableRow key={g.gym_id} className={g.is_at_risk ? "bg-destructive/5" : undefined}>
-                        <TableCell className="font-medium">{g.gym_name}</TableCell>
-                        <TableCell>
-                          <Badge className={GYM_STATUS_BADGE_CLASSES[g.status]}>
-                            {GYM_STATUS_LABELS[g.status]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{PLAN_TIER_LABELS[g.plan_tier]}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">{g.users_total}</TableCell>
-                        {GYM_ROLE_ORDER.map((role) => (
-                          <TableCell key={role} className="text-right text-muted-foreground">
-                            {g.users_by_role[role] ?? 0}
-                          </TableCell>
-                        ))}
-                        <TableCell className="text-right">{g.active_subscriptions}</TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(g.revenue_period)}
-                        </TableCell>
-                        <TableCell className="text-right">{g.payments_count_period}</TableCell>
-                        <TableCell className="text-right">
-                          <span className="inline-flex items-center gap-1">
-                            {g.checkins_period}
-                            {g.checkins_trend_pct !== null &&
-                              (g.checkins_trend_pct >= 0 ? (
-                                <TrendingUp className="size-3 text-emerald-400" />
-                              ) : (
-                                <TrendingDown className="size-3 text-red-400" />
-                              ))}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">{g.branches_total}</TableCell>
-                        <TableCell>
-                          <Badge className={riskBadgeClass(g.is_at_risk)}>
-                            {g.is_at_risk ? (
-                              <span className="inline-flex items-center gap-1">
-                                <AlertTriangle className="size-3" />
-                                En riesgo
-                              </span>
-                            ) : (
-                              "Saludable"
-                            )}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <p className="text-sm text-muted-foreground">Todavía no hay gimnasios registrados.</p>
-            )}
-          </CardContent>
-        </Card>
-      </FadeIn>
+          <FadeIn delay={0.08}>
+            <section className={cn(panelClass, "p-0")}>
+              <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                <h2 className="font-heading text-lg font-medium">Desempeño por gimnasio</h2>
+                {!selectedGym && breakdown.length > 0 && (
+                  <Link href="/superadmin/gyms" className="text-[13px] font-medium text-primary hover:underline">
+                    Ver los {overview.gyms_total} gimnasios
+                  </Link>
+                )}
+              </div>
+              <GymPerformanceTable overview={overview} />
+            </section>
+          </FadeIn>
+        </>
+      )}
     </div>
+  )
+}
+
+function Kpi({ label, value, suffix, detail }: { label: string; value: string; suffix?: string; detail: string }) {
+  return (
+    <div className={cn(panelClass, "flex min-w-0 flex-col gap-2 p-4 sm:p-4.5")}>
+      <span className="text-[13px] font-medium text-muted-foreground sm:text-sm">{label}</span>
+      <span className="text-2xl leading-8 font-semibold tracking-tight tabular-nums sm:text-[30px] sm:leading-9">
+        {value}
+        {suffix && <span className="ml-1.5 text-base font-medium text-muted-foreground">{suffix}</span>}
+      </span>
+      <span className="text-[13px] text-muted-foreground">{detail}</span>
+    </div>
+  )
+}
+
+type Tone = "danger" | "warning" | "neutral"
+
+const TONE_CLASSES: Record<Tone, { box: string; bar: string }> = {
+  danger: { box: "bg-red-500/10", bar: "bg-red-400" },
+  warning: { box: "bg-amber-500/10", bar: "bg-amber-400" },
+  neutral: { box: "bg-foreground/3", bar: "bg-chart-5" },
+}
+
+function AttentionPanel({ overview }: { overview: PlatformOverview }) {
+  const { data: pendingRequests } = useSubscriptionPayments("PENDING", 1, 1)
+  const gyms = overview.gyms_breakdown
+  const names = (list: typeof gyms) =>
+    list.length <= 3 ? list.map((g) => g.gym_name).join(", ") : `${list.slice(0, 2).map((g) => g.gym_name).join(", ")} y ${list.length - 2} más`
+
+  const suspended = gyms.filter((g) => g.status === "SUSPENDED")
+  const trialExpired = gyms.filter((g) => g.is_trial_expired && g.status !== "SUSPENDED")
+  const atRisk = gyms.filter((g) => g.is_at_risk && g.status !== "SUSPENDED")
+  const failedPayments = gyms.reduce((sum, g) => sum + g.failed_payments_period, 0)
+  const failedGyms = gyms.filter((g) => g.failed_payments_period > 0)
+  const expiring = gyms.reduce((sum, g) => sum + g.expiring_subscriptions_7d, 0)
+  const pendingCount = pendingRequests?.total ?? 0
+
+  const items: { key: string; tone: Tone; title: string; detail: string; href: string }[] = []
+  if (suspended.length)
+    items.push({
+      key: "suspended",
+      tone: "danger",
+      title: `${suspended.length} ${suspended.length === 1 ? "gimnasio suspendido" : "gimnasios suspendidos"}`,
+      detail: names(suspended),
+      href: "/superadmin/gyms",
+    })
+  if (trialExpired.length)
+    items.push({
+      key: "trial",
+      tone: "danger",
+      title: `${trialExpired.length} ${trialExpired.length === 1 ? "prueba vencida" : "pruebas vencidas"} sin pago`,
+      detail: names(trialExpired),
+      href: "/superadmin/gyms",
+    })
+  if (pendingCount)
+    items.push({
+      key: "requests",
+      tone: "warning",
+      title: `${pendingCount} ${pendingCount === 1 ? "solicitud de suscripción" : "solicitudes de suscripción"}`,
+      detail: "Comprobantes esperando revisión",
+      href: "/superadmin/subscriptions",
+    })
+  if (atRisk.length)
+    items.push({
+      key: "risk",
+      tone: "warning",
+      title: `${atRisk.length} ${atRisk.length === 1 ? "gimnasio en riesgo" : "gimnasios en riesgo"}`,
+      detail: names(atRisk),
+      href: "/superadmin/gyms",
+    })
+  if (failedPayments)
+    items.push({
+      key: "failed",
+      tone: "neutral",
+      title: `${failedPayments} ${failedPayments === 1 ? "pago fallido" : "pagos fallidos"}`,
+      detail: `En ${failedGyms.length} ${failedGyms.length === 1 ? "gimnasio" : "gimnasios"}`,
+      href: "/superadmin/gyms",
+    })
+  if (expiring)
+    items.push({
+      key: "expiring",
+      tone: "neutral",
+      title: `${expiring} ${expiring === 1 ? "membresía vence" : "membresías vencen"} en 7 días`,
+      detail: "Miembros de todos los gimnasios",
+      href: "/superadmin/gyms",
+    })
+
+  return (
+    <section className={cn(panelClass, "min-w-0 flex-[1_1_320px] space-y-3")}>
+      <div className="flex items-baseline justify-between">
+        <h2 className="font-heading text-lg font-medium">Requiere atención</h2>
+        <span className="text-[13px] text-muted-foreground">
+          {items.length === 0 ? "Nada pendiente" : `${items.length} ${items.length === 1 ? "asunto" : "asuntos"}`}
+        </span>
+      </div>
+      {items.length === 0 && (
+        <p className="rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-400">
+          Todos los gimnasios están al día.
+        </p>
+      )}
+      <ul className="space-y-2">
+        {items.map((item) => (
+          <li key={item.key}>
+            <Link
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 rounded-xl p-3 transition-colors hover:bg-foreground/5",
+                TONE_CLASSES[item.tone].box
+              )}
+            >
+              <span className={cn("h-9 w-1.5 shrink-0 rounded-full", TONE_CLASSES[item.tone].bar)} />
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">{item.title}</span>
+                <span className="block truncate text-[13px] text-muted-foreground">{item.detail}</span>
+              </span>
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function GymStatusBar({ overview }: { overview: PlatformOverview }) {
+  const segments = [
+    { label: GYM_STATUS_LABELS.ACTIVE, value: overview.gyms_active, color: "bg-emerald-400" },
+    { label: GYM_STATUS_LABELS.TRIAL, value: overview.gyms_trial, color: "bg-amber-400" },
+    { label: GYM_STATUS_LABELS.SUSPENDED, value: overview.gyms_suspended, color: "bg-red-400" },
+    { label: GYM_STATUS_LABELS.CANCELLED, value: overview.gyms_cancelled, color: "bg-chart-5" },
+  ]
+  const total = segments.reduce((sum, s) => sum + s.value, 0)
+
+  return (
+    <section className={cn(panelClass, "min-w-0 flex-[1_1_360px] space-y-3.5")}>
+      <h2 className="font-heading text-lg font-medium">Gimnasios por estado</h2>
+      {total === 0 ? (
+        <p className="text-sm text-muted-foreground">Todavía no hay gimnasios.</p>
+      ) : (
+        <>
+          <div className="flex h-3 gap-0.75 overflow-hidden rounded-full" role="img" aria-label={segments.map((s) => `${s.label}: ${s.value}`).join(", ")}>
+            {segments
+              .filter((s) => s.value > 0)
+              .map((s) => (
+                <div key={s.label} className={s.color} style={{ flexGrow: s.value }} />
+              ))}
+          </div>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-[13px]">
+            {segments.map((s) => (
+              <div key={s.label} className="flex items-center gap-2">
+                <span className={cn("size-2.5 rounded-[3px]", s.color)} />
+                <dt>{s.label}</dt>
+                <dd className="ml-auto font-semibold tabular-nums">{s.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
+    </section>
+  )
+}
+
+function PlanTiers({ overview }: { overview: PlatformOverview }) {
+  const counts = PLAN_TIERS.map((tier) => ({
+    tier,
+    count: overview.gyms_breakdown.filter((g) => g.plan_tier === tier).length,
+  }))
+  const top = Math.max(...counts.map((c) => c.count))
+
+  return (
+    <section className={cn(panelClass, "min-w-0 flex-[1_1_360px] space-y-3.5")}>
+      <h2 className="font-heading text-lg font-medium">Planes contratados</h2>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {counts.map(({ tier, count }) => (
+          <div
+            key={tier}
+            className={cn(
+              "rounded-xl bg-muted p-3",
+              count > 0 && count === top && "bg-primary/15 ring-1 ring-primary/40"
+            )}
+          >
+            <div className="text-[13px] text-muted-foreground">{PLAN_TIER_LABELS[tier]}</div>
+            <div className="text-[22px] font-semibold tabular-nums">{count}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function ReportDialog({ overview }: { overview: PlatformOverview | undefined }) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button size="lg" disabled={!overview} />}>
+        <Download className="size-4" />
+        Descargar reporte
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Descargar reporte</DialogTitle>
+          <DialogDescription>Elige el formato del archivo.</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            variant="outline"
+            size="lg"
+            className="h-12 flex-1"
+            onClick={() => {
+              if (!overview) return
+              downloadPlatformReportPdf(overview)
+              setOpen(false)
+            }}
+          >
+            <FileText className="size-4 text-red-400" />
+            PDF
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            className="h-12 flex-1"
+            onClick={() => {
+              if (!overview) return
+              downloadPlatformReportCsv(overview)
+              setOpen(false)
+            }}
+          >
+            <FileSpreadsheet className="size-4 text-emerald-400" />
+            Excel
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

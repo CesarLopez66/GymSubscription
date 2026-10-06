@@ -1,9 +1,11 @@
 import enum
+from decimal import Decimal
 
 
 class UserRole(str, enum.Enum):
     SUPERADMIN = "SUPERADMIN"
     GYM_ADMIN = "GYM_ADMIN"
+    BRANCH_MANAGER = "BRANCH_MANAGER"
     TRAINER = "TRAINER"
     NUTRITIONIST = "NUTRITIONIST"
     MEMBER = "MEMBER"
@@ -31,6 +33,25 @@ SAAS_PLAN_MEMBER_LIMITS: dict["SaaSPlanTier", int | None] = {
     SaaSPlanTier.PRO: 500,
     SaaSPlanTier.ENTERPRISE: None,
 }
+
+# Monthly price (Bs) a gym pays the platform for each tier. FREE never
+# requires a payment; ENTERPRISE has no self-service price — it's arranged
+# directly with the superadmin, so it's excluded from the self-service
+# upgrade flow entirely (see gym_subscription_service.submit_subscription_payment).
+# Placeholders until real pricing is set — change here, no other code depends
+# on the actual numbers.
+SAAS_PLAN_PRICES: dict["SaaSPlanTier", Decimal | None] = {
+    SaaSPlanTier.FREE: Decimal("0"),
+    SaaSPlanTier.BASIC: Decimal("150"),
+    SaaSPlanTier.PRO: Decimal("400"),
+    SaaSPlanTier.ENTERPRISE: None,
+}
+
+
+class SubscriptionRequestStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
 
 
 class SubscriptionStatus(str, enum.Enum):

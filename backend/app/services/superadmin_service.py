@@ -8,8 +8,9 @@ from app.core.config import settings
 from app.core.redis_client import redis_client
 from app.models.branch import Branch
 from app.models.checkin import CheckIn
-from app.models.enums import GymStatus, PaymentStatus, SubscriptionStatus, UserRole
+from app.models.enums import GymStatus, PaymentStatus, SubscriptionRequestStatus, SubscriptionStatus, UserRole
 from app.models.gym import Gym
+from app.models.gym_subscription_payment import GymSubscriptionPayment
 from app.models.payment import Payment
 from app.models.subscription import MemberSubscription
 from app.models.user import User
@@ -195,6 +196,20 @@ async def _gyms_breakdown(
     )
     branches_by_gym = dict(branches_result.all())
 
+    # What each gym actually paid the platform in the period — separate from
+    # revenue_by_gym above, which is that gym's own revenue from its members.
+    platform_revenue_result = await db.execute(
+        select(GymSubscriptionPayment.gym_id, func.coalesce(func.sum(GymSubscriptionPayment.amount), 0))
+        .where(
+            GymSubscriptionPayment.status == SubscriptionRequestStatus.APPROVED,
+            GymSubscriptionPayment.created_at >= since,
+        )
+        .group_by(GymSubscriptionPayment.gym_id)
+    )
+    platform_revenue_by_gym: dict[uuid.UUID, float] = {
+        gid: float(total) for gid, total in platform_revenue_result.all()
+    }
+
     # A user with 2+ roles now produces one row per role it holds (via
     # unnest), so — unlike before — users_by_gym can no longer be derived by
     # summing roles_by_gym's counts (that would double-count a dual-role
@@ -247,6 +262,7 @@ async def _gyms_breakdown(
                 branches_total=branches_by_gym.get(gym_id, 0),
                 active_subscriptions=active_subscriptions,
                 revenue_period=revenue_by_gym.get(gym_id, (0.0, 0))[0],
+                platform_revenue_period=platform_revenue_by_gym.get(gym_id, 0.0),
                 payments_count_period=revenue_by_gym.get(gym_id, (0.0, 0))[1],
                 checkins_period=checkins_period,
                 checkins_trend_pct=checkins_trend_pct,
@@ -384,6 +400,16 @@ async def _compute_platform_overview(
     revenue_total, active_subscriptions, checkins_last_30d = await _lifetime_stats(db, gym_id=gym_id)
     period_revenue, period_payments_count, period_checkins = await _period_stats(db, since, gym_id=gym_id)
 
+    platform_revenue_query = select(
+        func.coalesce(func.sum(GymSubscriptionPayment.amount), 0)
+    ).where(
+        GymSubscriptionPayment.status == SubscriptionRequestStatus.APPROVED,
+        GymSubscriptionPayment.created_at >= since,
+    )
+    if gym_id is not None:
+        platform_revenue_query = platform_revenue_query.where(GymSubscriptionPayment.gym_id == gym_id)
+    platform_revenue_period = float(await db.scalar(platform_revenue_query) or 0)
+
     return PlatformOverview(
         gyms_total=gyms_total,
         gyms_active=gym_counts[GymStatus.ACTIVE.value],
@@ -402,6 +428,7 @@ async def _compute_platform_overview(
         period_checkins=period_checkins,
         revenue_by_day=await _revenue_by_day(db, since, gym_id=gym_id),
         gyms_breakdown=await _gyms_breakdown(db, since, gym_id=gym_id),
+        platform_revenue_period=platform_revenue_period,
     )
 
 
@@ -425,6 +452,12 @@ async def get_gym_detail(db: AsyncSession, gym_id: uuid.UUID) -> GymDetail:
 
     revenue_total, active_subscriptions, checkins_last_30d = await _lifetime_stats(db, gym_id=gym_id)
 
+    subscription_payments_result = await db.execute(
+        select(GymSubscriptionPayment)
+        .where(GymSubscriptionPayment.gym_id == gym_id)
+        .order_by(GymSubscriptionPayment.created_at.desc())
+    )
+
     return GymDetail(
         gym=gym,
         users_total=users_total,
@@ -435,6 +468,7 @@ async def get_gym_detail(db: AsyncSession, gym_id: uuid.UUID) -> GymDetail:
         branches_total=len(branches),
         branches=[BranchRead.model_validate(b) for b in branches],
         recent_users=list(recent_users_result.scalars().all()),
+        subscription_payments=list(subscription_payments_result.scalars().all()),
         recent_payments=await _recent_payments(db, gym_id=gym_id),
     )
 

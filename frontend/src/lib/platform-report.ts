@@ -29,7 +29,7 @@ function summaryRows(overview: PlatformOverview): [string, string][] {
 // SUPERADMIN is never tied to a gym_id, so it never shows up in a per-gym
 // breakdown — no platform-wide "users by role" total is included anymore
 // since every other number in this report is scoped to one gym.
-const GYM_ROLE_ORDER: UserRole[] = ["GYM_ADMIN", "TRAINER", "NUTRITIONIST", "MEMBER"]
+const GYM_ROLE_ORDER: UserRole[] = ["GYM_ADMIN", "BRANCH_MANAGER", "TRAINER", "NUTRITIONIST", "MEMBER"]
 
 // One row per registered gym — the platform is billing per tenant, so the
 // report's core value is this breakdown, not a platform aggregate.

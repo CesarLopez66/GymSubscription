@@ -15,6 +15,7 @@ from app.models.user import User
 from app.schemas.payment import PaymentCreate, PaymentSelfCreate, PaymentUpdate
 from app.services import notification_service, promotion_service, subscription_service
 from app.services.checkin_service import invalidate_checkin_cache
+from app.services.db_helpers import get_or_404
 from app.services.membership_service import get_membership
 
 
@@ -86,13 +87,9 @@ async def create_payment(
 
 
 async def get_payment(db: AsyncSession, gym_id: uuid.UUID, payment_id: uuid.UUID) -> Payment:
-    result = await db.execute(
-        select(Payment).where(Payment.id == payment_id, Payment.gym_id == gym_id)
+    return await get_or_404(
+        db, Payment, PaymentNotFoundError, "Pago no encontrado", id=payment_id, gym_id=gym_id
     )
-    payment = result.scalar_one_or_none()
-    if payment is None:
-        raise PaymentNotFoundError("Pago no encontrado")
-    return payment
 
 
 async def list_payments(
@@ -142,60 +139,70 @@ async def update_payment_status(
     return payment
 
 
-def _revenue_summary_cache_key(gym_id: uuid.UUID) -> str:
-    return f"stats:revenue_summary:{gym_id}"
+def _revenue_summary_cache_key(gym_id: uuid.UUID, branch_id: uuid.UUID | None = None) -> str:
+    return f"stats:revenue_summary:{gym_id}:{branch_id or 'all'}"
 
 
-def _daily_revenue_cache_key(gym_id: uuid.UUID, days: int) -> str:
-    return f"stats:daily_revenue:{gym_id}:{days}"
+def _daily_revenue_cache_key(
+    gym_id: uuid.UUID, days: int, branch_id: uuid.UUID | None = None
+) -> str:
+    return f"stats:daily_revenue:{gym_id}:{days}:{branch_id or 'all'}"
 
 
 async def invalidate_revenue_cache(gym_id: uuid.UUID) -> None:
     """Call whenever a payment's status changes in a way that could move the
     COMPLETED total — otherwise the cached revenue figures could outlive the
-    write that changed them for up to STATS_CACHE_TTL_SECONDS."""
-    await redis_client.delete(_revenue_summary_cache_key(gym_id))
-    async for key in redis_client.scan_iter(match=_daily_revenue_cache_key(gym_id, "*")):
+    write that changed them for up to STATS_CACHE_TTL_SECONDS. Wildcard-scans
+    every branch variant (gym-wide plus each per-branch key) since a single
+    payment write can affect both the gym-wide total and its branch's."""
+    async for key in redis_client.scan_iter(match=f"stats:revenue_summary:{gym_id}:*"):
+        await redis_client.delete(key)
+    async for key in redis_client.scan_iter(match=f"stats:daily_revenue:{gym_id}:*"):
         await redis_client.delete(key)
 
 
-async def get_revenue_summary(db: AsyncSession, gym_id: uuid.UUID) -> dict[str, float]:
-    """Scans every COMPLETED payment for the gym, so it's cached (short TTL)
-    instead of re-run on every dashboard load."""
-    cache_key = _revenue_summary_cache_key(gym_id)
+async def get_revenue_summary(
+    db: AsyncSession, gym_id: uuid.UUID, branch_id: uuid.UUID | None = None
+) -> dict[str, float]:
+    """Scans every COMPLETED payment for the gym (optionally scoped to one
+    branch), so it's cached (short TTL) instead of re-run on every dashboard
+    load."""
+    cache_key = _revenue_summary_cache_key(gym_id, branch_id)
     cached = await redis_client.get(cache_key)
     if cached is not None:
         return json.loads(cached)
 
-    result = await db.execute(
-        select(func.coalesce(func.sum(Payment.amount), 0)).where(
-            Payment.gym_id == gym_id, Payment.status == PaymentStatus.COMPLETED
-        )
-    )
+    conditions = [Payment.gym_id == gym_id, Payment.status == PaymentStatus.COMPLETED]
+    if branch_id is not None:
+        conditions.append(Payment.branch_id == branch_id)
+    result = await db.execute(select(func.coalesce(func.sum(Payment.amount), 0)).where(*conditions))
     summary = {"total_revenue": float(result.scalar_one())}
     await redis_client.set(cache_key, json.dumps(summary), ex=settings.STATS_CACHE_TTL_SECONDS)
     return summary
 
 
-async def get_daily_revenue(db: AsyncSession, gym_id: uuid.UUID, days: int) -> list[dict]:
+async def get_daily_revenue(
+    db: AsyncSession, gym_id: uuid.UUID, days: int, branch_id: uuid.UUID | None = None
+) -> list[dict]:
     """Server-side aggregation for the dashboard's revenue chart — replaces
     paging through up to 100 recent payments client-side, which silently
     under-counts once a gym does more than 100 transactions in the window.
     Cached (short TTL) since it's a full table scan hit on every dashboard load."""
-    cache_key = _daily_revenue_cache_key(gym_id, days)
+    cache_key = _daily_revenue_cache_key(gym_id, days, branch_id)
     cached = await redis_client.get(cache_key)
     if cached is not None:
         return json.loads(cached)
 
     day_col = func.date_trunc("day", Payment.created_at).label("day")
+    conditions = [
+        Payment.gym_id == gym_id,
+        Payment.status == PaymentStatus.COMPLETED,
+        Payment.created_at >= func.now() - func.make_interval(0, 0, 0, days),
+    ]
+    if branch_id is not None:
+        conditions.append(Payment.branch_id == branch_id)
     result = await db.execute(
-        select(day_col, func.sum(Payment.amount))
-        .where(
-            Payment.gym_id == gym_id,
-            Payment.status == PaymentStatus.COMPLETED,
-            Payment.created_at >= func.now() - func.make_interval(0, 0, 0, days),
-        )
-        .group_by(day_col)
+        select(day_col, func.sum(Payment.amount)).where(*conditions).group_by(day_col)
     )
     totals_by_day = {row[0].date().isoformat(): float(row[1]) for row in result.all()}
     daily = [

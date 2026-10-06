@@ -11,6 +11,7 @@ from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.gym import (
     GymAuditLogRead,
+    GymBrandingUpdate,
     GymCheckinQrRead,
     GymCreate,
     GymPaymentQrUpdate,
@@ -19,8 +20,10 @@ from app.schemas.gym import (
     GymSuspendRequest,
     GymUpdate,
 )
-from app.services import gym_service
-from app.services.gym_service import GymNotFoundError, GymSubdomainTakenError
+from app.schemas.user import GymAdminCreate, UserCreate, UserRead
+from app.services import gym_service, user_service
+from app.services.gym_service import GymNotFoundError, GymNotSuspendedError, GymSubdomainTakenError
+from app.services.user_service import EmailAlreadyExistsError
 
 router = APIRouter(prefix="/gyms", tags=["gyms"])
 
@@ -39,6 +42,31 @@ async def create_gym(
     except GymSubdomainTakenError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return GymRead.model_validate(gym)
+
+
+@router.post("/{gym_id}/admins", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+async def create_gym_admin(
+    gym_id: uuid.UUID,
+    payload: GymAdminCreate,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_superadmin),
+) -> UserRead:
+    """A brand-new gym has zero users, and creating a regular staff account
+    (POST /users) requires an existing GYM_ADMIN of that same gym — so
+    without this, nobody could ever log into a gym a superadmin just
+    created. Superadmin-only, and always GYM_ADMIN: broader staff hiring
+    belongs to that gym's own admin once this first one exists."""
+    try:
+        await gym_service.get_gym(db, gym_id)
+    except GymNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    user_data = UserCreate(**payload.model_dump(), roles=[UserRole.GYM_ADMIN])
+    try:
+        user = await user_service.create_user(db, gym_id, user_data)
+    except EmailAlreadyExistsError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return UserRead.model_validate(user)
 
 
 @router.get("", response_model=Page[GymRead])
@@ -79,6 +107,19 @@ async def update_my_payment_qr(
     _: User = Depends(require_gym_admin),
 ) -> GymRead:
     gym = await gym_service.update_payment_qr(db, gym_id, payload.payment_qr_image)
+    return GymRead.model_validate(gym)
+
+
+@router.patch("/me/branding", response_model=GymRead)
+async def update_my_branding(
+    payload: GymBrandingUpdate,
+    db: AsyncSession = Depends(get_db),
+    gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    _: User = Depends(require_gym_admin),
+) -> GymRead:
+    """Lets a gym's own admin restyle their dashboard/trainer/member UI —
+    previously only a superadmin could touch these via PATCH /gyms/{id}."""
+    gym = await gym_service.update_branding(db, gym_id, payload.primary_color, payload.secondary_color)
     return GymRead.model_validate(gym)
 
 
@@ -193,3 +234,5 @@ async def delete_gym(
         await gym_service.delete_gym(db, gym_id)
     except GymNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except GymNotSuspendedError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc

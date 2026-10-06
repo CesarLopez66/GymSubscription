@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.deps.auth import get_current_active_user, get_tenant_gym_id, require_role
+from app.deps.auth import get_current_active_user, get_effective_branch_id, get_tenant_gym_id, require_role
+from app.deps.branch_scope import ensure_user_in_branch
 from app.deps.pagination import PaginationParams, pagination_params
 from app.deps.rate_limit import rate_limit
 from app.models.enums import UserRole
@@ -25,25 +26,35 @@ async def _verify_check_in(
     db: AsyncSession,
     gym_id: uuid.UUID,
     current_user: User,
+    effective_branch: uuid.UUID | None,
 ) -> CheckInRead:
     target_user_id = payload.user_id
     if UserRole.MEMBER in current_user.roles and target_user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
-    if set(current_user.roles).isdisjoint({UserRole.MEMBER, UserRole.GYM_ADMIN, UserRole.TRAINER}):
+    if set(current_user.roles).isdisjoint(
+        {UserRole.MEMBER, UserRole.GYM_ADMIN, UserRole.BRANCH_MANAGER, UserRole.TRAINER}
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
-    if payload.branch_id is not None:
+    # A branch-scoped operator always checks members in at their own branch —
+    # whatever branch_id the payload carries is ignored in favor of it.
+    branch_id = effective_branch if effective_branch is not None else payload.branch_id
+
+    if branch_id is not None:
         # get_branch already scopes by gym_id, so a branch belonging to
         # another tenant surfaces as "not found" rather than leaking which
         # gyms exist.
         try:
-            await branch_service.get_branch(db, gym_id, payload.branch_id)
+            await branch_service.get_branch(db, gym_id, branch_id)
         except branch_service.BranchNotFoundError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    if effective_branch is not None:
+        await ensure_user_in_branch(db, gym_id, target_user_id, effective_branch)
+
     try:
         result = await checkin_service.perform_check_in(
-            db, gym_id=gym_id, user_id=target_user_id, branch_id=payload.branch_id
+            db, gym_id=gym_id, user_id=target_user_id, branch_id=branch_id
         )
     except CheckInError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -60,12 +71,13 @@ async def verify_check_in(
     payload: CheckInCreate,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     current_user: User = Depends(get_current_active_user),
 ) -> CheckInRead:
     """High-speed access verification for the gym entrance: checks the Redis-cached
     subscription status and returns GRANTED/DENIED, while still recording an
     audit CheckIn row."""
-    return await _verify_check_in(payload, db, gym_id, current_user)
+    return await _verify_check_in(payload, db, gym_id, current_user, effective_branch)
 
 
 @router.post(
@@ -78,10 +90,11 @@ async def scan_check_in(
     payload: CheckInCreate,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     current_user: User = Depends(get_current_active_user),
 ) -> CheckInRead:
     """Alias for /verify — named for the QR-scanner front-desk device flow."""
-    return await _verify_check_in(payload, db, gym_id, current_user)
+    return await _verify_check_in(payload, db, gym_id, current_user, effective_branch)
 
 
 @router.post(
@@ -127,16 +140,20 @@ async def list_check_ins(
     branch_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     pagination: PaginationParams = Depends(pagination_params),
     current_user: User = Depends(get_current_active_user),
 ) -> Page[CheckInRead]:
     if UserRole.MEMBER in current_user.roles:
         user_id = current_user.id
-    elif set(current_user.roles).isdisjoint({UserRole.GYM_ADMIN, UserRole.TRAINER}):
+    elif set(current_user.roles).isdisjoint(
+        {UserRole.GYM_ADMIN, UserRole.BRANCH_MANAGER, UserRole.TRAINER}
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
+    effective = effective_branch if effective_branch is not None else branch_id
     check_ins, total = await checkin_service.list_check_ins(
-        db, gym_id, pagination, user_id=user_id, branch_id=branch_id
+        db, gym_id, pagination, user_id=user_id, branch_id=effective
     )
 
     return Page.create(

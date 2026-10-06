@@ -1,7 +1,7 @@
 import { keepPreviousData, queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { api } from "@/lib/api-client"
-import type { Gym, GymStatus, Page, SaaSPlanTier } from "@/lib/types"
+import type { Gym, GymStatus, Page, SaaSPlanTier, User } from "@/lib/types"
 
 export interface GymCreateInput {
   name: string
@@ -10,6 +10,8 @@ export interface GymCreateInput {
   contact_phone?: string
   address?: string
   plan_tier: SaaSPlanTier
+  primary_color?: string
+  secondary_color?: string
 }
 
 export interface GymUpdateInput {
@@ -19,6 +21,8 @@ export interface GymUpdateInput {
   contact_email?: string
   contact_phone?: string
   address?: string
+  primary_color?: string | null
+  secondary_color?: string | null
 }
 
 export function gymsQueryOptions(
@@ -77,6 +81,27 @@ export function useCreateGym() {
   })
 }
 
+export interface GymAdminCreateInput {
+  email: string
+  first_name: string
+  last_name: string
+  password: string
+  phone?: string
+}
+
+// A brand-new gym has zero users, and the regular staff-creation endpoint
+// requires an existing GYM_ADMIN of that same gym to call it — this is the
+// superadmin-only escape hatch that seeds the first one.
+export function useCreateGymAdmin() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ gymId, input }: { gymId: string; input: GymAdminCreateInput }) =>
+      api.post<User>(`/gyms/${gymId}/admins`, input),
+    onSuccess: (_, { gymId }) =>
+      queryClient.invalidateQueries({ queryKey: ["superadmin", "gyms", gymId] }),
+  })
+}
+
 export function useUpdateGym() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -125,13 +150,14 @@ export function useGymAuditLog(gymId: string) {
   })
 }
 
-export function useMyGym() {
+export function useMyGym(enabled = true) {
   return useQuery({
     queryKey: ["gyms", "me"],
     queryFn: () => api.get<Gym>("/gyms/me"),
     // Config del propio gym (nombre, branding, QR de pago): la cambia un
     // admin de vez en cuando, no vale la pena refetchear en cada navegación.
     staleTime: 5 * 60 * 1000,
+    enabled,
   })
 }
 
@@ -140,6 +166,21 @@ export function useUpdatePaymentQr() {
   return useMutation({
     mutationFn: (payment_qr_image: string | null) =>
       api.patch<Gym>("/gyms/me/payment-qr", { payment_qr_image }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["gyms", "me"] }),
+  })
+}
+
+export interface GymBrandingInput {
+  primary_color?: string | null
+  secondary_color?: string | null
+}
+
+// Self-service branding for a gym's own admin — previously only a
+// superadmin could touch primary_color/secondary_color via PATCH /gyms/{id}.
+export function useUpdateMyGymBranding() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: GymBrandingInput) => api.patch<Gym>("/gyms/me/branding", input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["gyms", "me"] }),
   })
 }

@@ -11,9 +11,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { BranchFilter } from "@/components/shared/branch-filter"
 import { EntityCard } from "@/components/shared/entity-card"
 import { MemberPicker } from "@/components/shared/member-picker"
 import { FadeIn, StaggerGroup, StaggerItem } from "@/components/shared/motion"
+import { useBranchFilterStore } from "@/store/branch-filter-store"
 import { ApiError } from "@/lib/api-client"
 import { useCheckIns, useVerifyCheckIn } from "@/hooks/use-checkins"
 import { useCheckinQr, useRegenerateCheckinQr } from "@/hooks/use-gyms"
@@ -77,8 +79,9 @@ export default function CheckInMonitorPage() {
   const [selectedMember, setSelectedMember] = React.useState<string>("")
   const [scanKey, setScanKey] = React.useState(0)
   const lastScannedRef = React.useRef<{ code: string; at: number } | null>(null)
+  const branchId = useBranchFilterStore((s) => s.branchId)
   const { data: members } = useUsers("MEMBER", 1, 100)
-  const { data: checkIns } = useCheckIns(undefined, { live: true })
+  const { data: checkIns } = useCheckIns(undefined, { live: true, branchId })
   const verify = useVerifyCheckIn()
 
   const memberName = (userId: string) => {
@@ -131,8 +134,9 @@ export default function CheckInMonitorPage() {
 
   return (
     <div className="space-y-6">
-      <FadeIn>
+      <FadeIn className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Monitor de check-in</h1>
+        <BranchFilter />
       </FadeIn>
 
       <div className="grid gap-6 lg:grid-cols-2">

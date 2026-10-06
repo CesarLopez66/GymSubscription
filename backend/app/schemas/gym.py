@@ -5,6 +5,8 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models.enums import GymStatus, SaaSPlanTier
 
+_HEX_COLOR_PATTERN = r"^#[0-9a-fA-F]{6}$"
+
 
 class GymBase(BaseModel):
     name: str = Field(min_length=2, max_length=150)
@@ -12,6 +14,12 @@ class GymBase(BaseModel):
     contact_email: EmailStr
     contact_phone: str | None = None
     address: str | None = None
+    # Brand colors applied across that gym's dashboard/trainer/member UI —
+    # null keeps the app's default theme. Hex only ("#rrggbb") since that's
+    # what an <input type="color"> produces and what gets written straight
+    # into a CSS custom property client-side.
+    primary_color: str | None = Field(default=None, pattern=_HEX_COLOR_PATTERN)
+    secondary_color: str | None = Field(default=None, pattern=_HEX_COLOR_PATTERN)
 
 
 class GymCreate(GymBase):
@@ -25,10 +33,21 @@ class GymUpdate(BaseModel):
     contact_email: EmailStr | None = None
     contact_phone: str | None = None
     address: str | None = None
+    primary_color: str | None = Field(default=None, pattern=_HEX_COLOR_PATTERN)
+    secondary_color: str | None = Field(default=None, pattern=_HEX_COLOR_PATTERN)
 
 
 class GymPaymentQrUpdate(BaseModel):
     payment_qr_image: str | None = Field(default=None, max_length=2_000_000)
+
+
+class GymBrandingUpdate(BaseModel):
+    """Self-service subset of GymUpdate — a gym admin can restyle their own
+    dashboard without touching the identity/billing fields (name, subdomain,
+    plan_tier, status) that stay superadmin-only."""
+
+    primary_color: str | None = Field(default=None, pattern=_HEX_COLOR_PATTERN)
+    secondary_color: str | None = Field(default=None, pattern=_HEX_COLOR_PATTERN)
 
 
 class GymCheckinQrRead(BaseModel):

@@ -20,9 +20,9 @@ export function superAdminOverviewQueryOptions(
     // to empty while the new period loads — keep showing the previous
     // period's numbers until the new ones are in.
     placeholderData: keepPreviousData,
-    // This same query (same days/gym/date) backs Home, Estadísticas y
-    // Actividad — without a staleTime, navigating between them re-triggers
-    // the ~12-query overview endpoint on every mount even though nothing
+    // The superadmin home screen re-mounts this same query (same
+    // days/gym/date) on every navigation back to it — without a staleTime
+    // that re-triggers the ~12-query overview endpoint even though nothing
     // changed. 20s keeps the platform's own numbers fresh enough while
     // avoiding that redundant round trip.
     staleTime: 20_000,

@@ -32,10 +32,15 @@ export function usePayments(userId?: string, page = 1, pageSize = 20, branchId?:
   return useQuery(paymentsQueryOptions(userId, page, pageSize, branchId))
 }
 
-export function useRevenueSummary() {
+export function useRevenueSummary(branchId?: string) {
   return useQuery({
-    queryKey: ["payments", "revenue-summary"],
-    queryFn: () => api.get<{ total_revenue: number }>("/payments/revenue-summary"),
+    queryKey: ["payments", "revenue-summary", branchId],
+    queryFn: () => {
+      const params = new URLSearchParams()
+      if (branchId) params.set("branch_id", branchId)
+      const qs = params.toString()
+      return api.get<{ total_revenue: number }>(`/payments/revenue-summary${qs ? `?${qs}` : ""}`)
+    },
   })
 }
 
@@ -44,10 +49,14 @@ export interface DailyRevenue {
   total: number
 }
 
-export function useDailyRevenue(days = 30) {
+export function useDailyRevenue(days = 30, branchId?: string) {
   return useQuery({
-    queryKey: ["payments", "revenue-daily", days],
-    queryFn: () => api.get<DailyRevenue[]>(`/payments/revenue-daily?days=${days}`),
+    queryKey: ["payments", "revenue-daily", days, branchId],
+    queryFn: () => {
+      const params = new URLSearchParams({ days: String(days) })
+      if (branchId) params.set("branch_id", branchId)
+      return api.get<DailyRevenue[]>(`/payments/revenue-daily?${params.toString()}`)
+    },
   })
 }
 

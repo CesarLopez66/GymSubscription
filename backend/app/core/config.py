@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # Fixed-window rate limits, as "<max requests>/<window seconds>".
     RATE_LIMIT_LOGIN: str = "10/60"
     RATE_LIMIT_CHECKIN: str = "60/60"
+    # Public, unauthenticated signup — tighter window since there's no
+    # account yet to attribute abuse to.
+    RATE_LIMIT_GYM_REGISTRATION: str = "5/3600"
 
     # LLM used to generate workout routines from a physical evaluation
     # (workout_llm_service.py) — only "ollama" is implemented.

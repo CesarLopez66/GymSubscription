@@ -5,7 +5,8 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.deps.auth import get_current_active_user, get_tenant_gym_id, require_role
+from app.deps.auth import get_current_active_user, get_effective_branch_id, get_tenant_gym_id, require_role
+from app.deps.branch_scope import ensure_user_in_branch
 from app.deps.pagination import PaginationParams, pagination_params
 from app.models.enums import UserRole
 from app.models.user import User
@@ -26,7 +27,9 @@ from app.services.workout_llm_service import LLMGenerationError
 router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 
 # Nutritionists need body-composition data (weight, body fat %) to prescribe
-# accurate macros, so they share write access with trainers here.
+# accurate macros, so they share write access with trainers here. Branch
+# scoping (not gate membership) is what changed for these three roles —
+# BRANCH_MANAGER itself isn't part of this feature's coaching surface.
 require_trainer = require_role([UserRole.TRAINER, UserRole.NUTRITIONIST, UserRole.GYM_ADMIN])
 
 
@@ -35,8 +38,12 @@ async def create_evaluation(
     payload: EvaluationCreate,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     current_user: User = Depends(require_trainer),
 ) -> EvaluationCreateResponse:
+    if effective_branch is not None:
+        payload = payload.model_copy(update={"branch_id": effective_branch})
+        await ensure_user_in_branch(db, gym_id, payload.user_id, effective_branch)
     try:
         evaluation = await evaluation_service.create_evaluation(
             db, gym_id, current_user.id, payload
@@ -101,6 +108,7 @@ async def list_evaluations(
     branch_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     pagination: PaginationParams = Depends(pagination_params),
     current_user: User = Depends(get_current_active_user),
 ) -> Page[EvaluationRead]:
@@ -111,8 +119,9 @@ async def list_evaluations(
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
+    effective = effective_branch if effective_branch is not None else branch_id
     evaluations, total = await evaluation_service.list_evaluations(
-        db, gym_id, pagination, user_id=user_id, branch_id=branch_id
+        db, gym_id, pagination, user_id=user_id, branch_id=effective
     )
     return Page.create(
         items=[EvaluationRead.model_validate(e) for e in evaluations],
@@ -127,6 +136,7 @@ async def get_evaluation(
     evaluation_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     current_user: User = Depends(get_current_active_user),
 ) -> EvaluationRead:
     try:
@@ -136,6 +146,12 @@ async def get_evaluation(
 
     if UserRole.MEMBER in current_user.roles and evaluation.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
+    if (
+        UserRole.MEMBER not in current_user.roles
+        and effective_branch is not None
+        and evaluation.branch_id != effective_branch
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evaluación no encontrada")
 
     return EvaluationRead.model_validate(evaluation)
 
@@ -146,8 +162,16 @@ async def update_evaluation(
     payload: EvaluationUpdate,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     _: User = Depends(require_trainer),
 ) -> EvaluationRead:
+    if effective_branch is not None:
+        try:
+            existing = await evaluation_service.get_evaluation(db, gym_id, evaluation_id)
+        except EvaluationNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        if existing.branch_id != effective_branch:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Evaluación no encontrada")
     try:
         evaluation = await evaluation_service.update_evaluation(db, gym_id, evaluation_id, payload)
     except EvaluationNotFoundError as exc:
@@ -160,8 +184,16 @@ async def delete_evaluation(
     evaluation_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     _: User = Depends(require_trainer),
 ) -> None:
+    if effective_branch is not None:
+        try:
+            existing = await evaluation_service.get_evaluation(db, gym_id, evaluation_id)
+        except EvaluationNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        if existing.branch_id != effective_branch:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Evaluación no encontrada")
     try:
         await evaluation_service.delete_evaluation(db, gym_id, evaluation_id)
     except EvaluationNotFoundError as exc:

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.deps.pagination import PaginationParams, paginate
 from app.models.exercise import Exercise
 from app.schemas.exercise import ExerciseCreate, ExerciseUpdate
+from app.services.db_helpers import get_or_404
 
 
 class ExerciseNotFoundError(Exception):
@@ -61,13 +62,9 @@ async def _get_owned_exercise(
 ) -> Exercise:
     """Like get_exercise, but only returns exercises actually owned by the caller's
     tenant (or the global catalog for SUPERADMIN) — used to gate mutations."""
-    result = await db.execute(
-        select(Exercise).where(Exercise.id == exercise_id, Exercise.gym_id == gym_id)
+    return await get_or_404(
+        db, Exercise, ExerciseNotFoundError, "Ejercicio no encontrado", id=exercise_id, gym_id=gym_id
     )
-    exercise = result.scalar_one_or_none()
-    if exercise is None:
-        raise ExerciseNotFoundError("Ejercicio no encontrado")
-    return exercise
 
 
 async def update_exercise(

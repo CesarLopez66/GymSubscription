@@ -9,6 +9,7 @@ from app.deps.rate_limit import rate_limit
 from app.models.user import User
 from app.schemas.auth import (
     ForgotPasswordRequest,
+    LoginChoicesResponse,
     LoginRequest,
     MeResponse,
     RefreshRequest,
@@ -17,6 +18,7 @@ from app.schemas.auth import (
 )
 from app.services.auth_service import (
     AuthError,
+    MultipleGymsError,
     authenticate_user,
     issue_token_pair,
     refresh_access_token,
@@ -33,12 +35,16 @@ _login_rate_limit = rate_limit("login", settings.RATE_LIMIT_LOGIN)
 _forgot_password_rate_limit = rate_limit("forgot_password", settings.RATE_LIMIT_LOGIN)
 
 
-@router.post("/token", response_model=TokenPair, dependencies=[Depends(_login_rate_limit)])
+@router.post(
+    "/token",
+    response_model=TokenPair | LoginChoicesResponse,
+    dependencies=[Depends(_login_rate_limit)],
+)
 async def issue_token(
     payload: LoginRequest,
     db: AsyncSession = Depends(get_db),
     tenant_hint: TenantHint = Depends(get_tenant_hint),
-) -> TokenPair:
+) -> TokenPair | LoginChoicesResponse:
     gym_subdomain = payload.gym_subdomain or tenant_hint.subdomain
     try:
         user = await authenticate_user(
@@ -47,6 +53,8 @@ async def issue_token(
             password=payload.password,
             gym_subdomain=gym_subdomain,
         )
+    except MultipleGymsError as exc:
+        return LoginChoicesResponse(gyms=exc.choices)
     except AuthError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 

@@ -1,53 +1,35 @@
 "use client"
 
-import * as React from "react"
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
-import { toast } from "sonner"
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Banknote,
-  Building2,
-  CalendarCheck,
-  Eye,
-  Search,
-  Users,
-  Activity,
-} from "lucide-react"
+import { useParams } from "next/navigation"
+import { AlertTriangle, ArrowLeft, Banknote, Building2, CalendarCheck, Activity, Users } from "lucide-react"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EntityCard } from "@/components/shared/entity-card"
-import { initialsOf } from "@/components/shared/member-picker"
 import { FadeIn, StaggerGroup, StaggerItem } from "@/components/shared/motion"
 import { StatCard } from "@/components/shared/stat-card"
 import {
   activeBadgeClass,
   GYM_STATUS_BADGE_CLASSES,
-  PAYMENT_STATUS_BADGE_CLASSES,
   riskBadgeClass,
+  SUBSCRIPTION_REQUEST_STATUS_BADGE_CLASSES,
 } from "@/lib/badge-colors"
-import { ApiError } from "@/lib/api-client"
 import { formatCurrency } from "@/lib/currency"
 import { formatRelativeDate } from "@/lib/format"
 import {
   GYM_STATUS_LABELS,
-  PAYMENT_STATUS_LABELS,
-  PAYMENT_TYPE_LABELS,
   PLAN_TIER_LABELS,
   ROLE_LABELS,
+  SUBSCRIPTION_REQUEST_STATUS_LABELS,
 } from "@/lib/labels"
-import type { User, UserRole } from "@/lib/types"
-import { roleHome } from "@/hooks/use-auth"
+import type { UserRole } from "@/lib/types"
 import { useGymAuditLog } from "@/hooks/use-gyms"
-import { useGymUsers, useImpersonate, useSuperAdminGymDetail } from "@/hooks/use-superadmin"
-import { useAuthStore } from "@/store/auth-store"
+import { useSuperAdminGymDetail } from "@/hooks/use-superadmin"
+import { GymBrandColorsCard } from "./gym-brand-colors-card"
+import { GymUsersCard } from "./gym-users-card"
 
 const AUDIT_ACTION_LABELS: Record<string, string> = {
   suspended: "Suspendido",
@@ -61,45 +43,10 @@ function auditActionLabel(action: string): string {
   return action
 }
 
-const GYM_ROLES: UserRole[] = ["GYM_ADMIN", "TRAINER", "NUTRITIONIST", "MEMBER"]
-const ALL_ROLES = "ALL"
-
 export default function SuperAdminGymDetailPage() {
   const params = useParams<{ id: string }>()
-  const router = useRouter()
-  const startImpersonation = useAuthStore((s) => s.startImpersonation)
-  const impersonate = useImpersonate()
-  const [roleFilter, setRoleFilter] = React.useState<string>(ALL_ROLES)
-  const [query, setQuery] = React.useState("")
   const { data, isLoading } = useSuperAdminGymDetail(params.id)
   const { data: auditLog } = useGymAuditLog(params.id)
-  const { data: gymUsers, isLoading: usersLoading } = useGymUsers(
-    params.id,
-    roleFilter === ALL_ROLES ? undefined : (roleFilter as UserRole),
-    1,
-    100
-  )
-
-  const filteredUsers = (gymUsers?.items ?? []).filter((u) => {
-    const q = query.trim().toLowerCase()
-    if (!q) return true
-    return (
-      `${u.first_name} ${u.last_name}`.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q)
-    )
-  })
-
-  const handleSimulate = (target: User) => {
-    impersonate.mutate(target.id, {
-      onSuccess: (result) => {
-        startImpersonation(result.access_token, result.user)
-        toast.success(`Viendo como ${result.user.first_name} ${result.user.last_name}`)
-        router.push(roleHome(result.user.roles))
-      },
-      onError: (error) =>
-        toast.error(error instanceof ApiError ? error.detail : "No se pudo simular al usuario"),
-    })
-  }
 
   if (isLoading || !data) {
     return (
@@ -141,6 +88,10 @@ export default function SuperAdminGymDetailPage() {
         <p className="text-sm text-muted-foreground">
           {gym.subdomain} · {gym.contact_email}
         </p>
+      </FadeIn>
+
+      <FadeIn delay={0.1}>
+        <GymBrandColorsCard gym={gym} />
       </FadeIn>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -216,116 +167,46 @@ export default function SuperAdminGymDetailPage() {
       )}
 
       <FadeIn delay={0.2}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Usuarios</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Tabs value={roleFilter} onValueChange={setRoleFilter}>
-                <TabsList>
-                  <TabsTrigger value={ALL_ROLES}>Todos</TabsTrigger>
-                  {GYM_ROLES.map((role) => (
-                    <TabsTrigger key={role} value={role}>
-                      {ROLE_LABELS[role]}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-              <div className="relative sm:w-64">
-                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por nombre o correo…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
-
-            {usersLoading ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-28 w-full" />
-                ))}
-              </div>
-            ) : (
-              <StaggerGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredUsers.map((u) => (
-                  <StaggerItem key={u.id}>
-                    <EntityCard>
-                      <div className="flex items-center gap-3">
-                        <Avatar size="lg" className="shrink-0">
-                          <AvatarFallback className="bg-primary/10 font-medium text-primary">
-                            {initialsOf(u)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-semibold leading-tight">
-                            {u.first_name} {u.last_name}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">{u.email}</p>
-                        </div>
-                        <Badge className={activeBadgeClass(u.is_active)}>
-                          {u.is_active ? "Activo" : "Inactivo"}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 border-t pt-3">
-                        <span className="text-xs text-muted-foreground">
-                          {u.roles.map((r) => ROLE_LABELS[r]).join(" / ")} ·{" "}
-                          {formatRelativeDate(u.created_at)}
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!u.is_active || impersonate.isPending}
-                          title={u.is_active ? undefined : "No se puede simular a un usuario inactivo"}
-                          onClick={() => handleSimulate(u)}
-                        >
-                          <Eye className="size-3.5" />
-                          Simular
-                        </Button>
-                      </div>
-                    </EntityCard>
-                  </StaggerItem>
-                ))}
-                {filteredUsers.length === 0 && (
-                  <p className="text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
-                    No se encontraron usuarios.
-                  </p>
-                )}
-              </StaggerGroup>
-            )}
-          </CardContent>
-        </Card>
+        <GymUsersCard gymId={params.id} />
       </FadeIn>
 
       <FadeIn delay={0.25}>
         <Card>
           <CardHeader>
-            <CardTitle>Pagos recientes</CardTitle>
+            <CardTitle>Suscripción a la plataforma</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge variant="secondary">{PLAN_TIER_LABELS[gym.plan_tier]}</Badge>
+              {gym.subscription_ends_at && (
+                <span className="text-sm text-muted-foreground">
+                  Vence el {new Date(gym.subscription_ends_at).toLocaleDateString()}
+                </span>
+              )}
+            </div>
             <StaggerGroup className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {data.recent_payments.map((p) => (
+              {data.subscription_payments.map((p) => (
                 <StaggerItem key={p.id}>
                   <EntityCard contentClassName="gap-2 p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{formatCurrency(Number(p.amount))}</span>
-                      <Badge className={PAYMENT_STATUS_BADGE_CLASSES[p.status]}>
-                        {PAYMENT_STATUS_LABELS[p.status]}
+                      <span className="font-medium">{PLAN_TIER_LABELS[p.requested_plan_tier]}</span>
+                      <Badge className={SUBSCRIPTION_REQUEST_STATUS_BADGE_CLASSES[p.status]}>
+                        {SUBSCRIPTION_REQUEST_STATUS_LABELS[p.status]}
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                      <span>{PAYMENT_TYPE_LABELS[p.payment_type]}</span>
+                      <span>{formatCurrency(p.amount)}</span>
                       <span>{formatRelativeDate(p.created_at)}</span>
                     </div>
+                    {p.rejection_reason && (
+                      <p className="text-xs text-destructive">{p.rejection_reason}</p>
+                    )}
                   </EntityCard>
                 </StaggerItem>
               ))}
-              {data.recent_payments.length === 0 && (
+              {data.subscription_payments.length === 0 && (
                 <p className="text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
-                  Todavía no hay pagos.
+                  Todavía no envió ninguna solicitud de suscripción.
                 </p>
               )}
             </StaggerGroup>
@@ -345,9 +226,7 @@ export default function SuperAdminGymDetailPage() {
                   <p className="font-medium">{auditActionLabel(log.action)}</p>
                   {log.reason && <p className="text-xs text-muted-foreground">{log.reason}</p>}
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {formatRelativeDate(log.created_at)}
-                </span>
+                <span className="text-xs text-muted-foreground">{formatRelativeDate(log.created_at)}</span>
               </div>
             ))}
             {(auditLog?.items?.length ?? 0) === 0 && (

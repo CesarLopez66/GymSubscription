@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.deps.auth import get_current_active_user, get_tenant_gym_id, require_role
+from app.deps.auth import get_current_active_user, get_effective_branch_id, get_tenant_gym_id, require_role
+from app.deps.branch_scope import ensure_user_in_branch
 from app.deps.pagination import PaginationParams, pagination_params
 from app.models.enums import UserRole
 from app.models.user import User
@@ -33,13 +34,29 @@ require_member = require_role([UserRole.MEMBER])
 require_coach_or_admin = require_role([UserRole.TRAINER, UserRole.NUTRITIONIST, UserRole.GYM_ADMIN])
 
 
+async def _get_scoped_plan(
+    db: AsyncSession, gym_id: uuid.UUID, plan_id: uuid.UUID, effective_branch: uuid.UUID | None
+):
+    try:
+        plan = await workout_service.get_workout_plan(db, gym_id, plan_id)
+    except WorkoutPlanNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if effective_branch is not None and plan.branch_id != effective_branch:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Plan no encontrado")
+    return plan
+
+
 @router.post("/assign", response_model=WorkoutPlanRead, status_code=status.HTTP_201_CREATED)
 async def create_workout_plan(
     payload: WorkoutPlanCreate,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     current_user: User = Depends(require_trainer),
 ) -> WorkoutPlanRead:
+    if effective_branch is not None:
+        payload = payload.model_copy(update={"branch_id": effective_branch})
+        await ensure_user_in_branch(db, gym_id, payload.user_id, effective_branch)
     try:
         plan = await workout_service.create_workout_plan(db, gym_id, current_user.id, payload)
     except InvalidWorkoutMemberError as exc:
@@ -55,6 +72,7 @@ async def list_workout_plans(
     branch_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     pagination: PaginationParams = Depends(pagination_params),
     current_user: User = Depends(get_current_active_user),
 ) -> Page[WorkoutPlanRead]:
@@ -65,8 +83,9 @@ async def list_workout_plans(
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
+    effective = effective_branch if effective_branch is not None else branch_id
     plans, total = await workout_service.list_workout_plans(
-        db, gym_id, pagination, user_id=user_id, branch_id=branch_id
+        db, gym_id, pagination, user_id=user_id, branch_id=effective
     )
     return Page.create(
         items=[WorkoutPlanRead.model_validate(p) for p in plans],
@@ -110,8 +129,10 @@ async def get_adherence(
     days: int = 7,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     _: User = Depends(require_coach_or_admin),
 ) -> WorkoutAdherenceRead:
+    await ensure_user_in_branch(db, gym_id, user_id, effective_branch)
     result = await workout_service.get_adherence_last_n_days(db, gym_id, user_id, days)
     return WorkoutAdherenceRead(**result)
 
@@ -121,6 +142,7 @@ async def get_workout_plan(
     plan_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     current_user: User = Depends(get_current_active_user),
 ) -> WorkoutPlanRead:
     try:
@@ -130,6 +152,12 @@ async def get_workout_plan(
 
     if UserRole.MEMBER in current_user.roles and plan.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
+    if (
+        UserRole.MEMBER not in current_user.roles
+        and effective_branch is not None
+        and plan.branch_id != effective_branch
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan no encontrado")
 
     return WorkoutPlanRead.model_validate(plan)
 
@@ -140,8 +168,10 @@ async def update_workout_plan(
     payload: WorkoutPlanUpdate,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     _: User = Depends(require_trainer),
 ) -> WorkoutPlanRead:
+    await _get_scoped_plan(db, gym_id, plan_id, effective_branch)
     try:
         plan = await workout_service.update_workout_plan(db, gym_id, plan_id, payload)
     except WorkoutPlanNotFoundError as exc:
@@ -155,8 +185,10 @@ async def replace_workout_plan_items(
     items: list[WorkoutPlanItemCreate],
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     _: User = Depends(require_trainer),
 ) -> WorkoutPlanRead:
+    await _get_scoped_plan(db, gym_id, plan_id, effective_branch)
     try:
         plan = await workout_service.replace_workout_plan_items(db, gym_id, plan_id, items)
     except WorkoutPlanNotFoundError as exc:
@@ -171,8 +203,10 @@ async def delete_workout_plan(
     plan_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     _: User = Depends(require_trainer),
 ) -> None:
+    await _get_scoped_plan(db, gym_id, plan_id, effective_branch)
     try:
         await workout_service.delete_workout_plan(db, gym_id, plan_id)
     except WorkoutPlanNotFoundError as exc:

@@ -11,6 +11,7 @@ from app.models.checkin import CheckIn
 from app.models.enums import SubscriptionStatus
 from app.models.subscription import MemberSubscription
 from app.models.user import User
+from app.services.db_helpers import get_or_404
 
 
 class CheckInError(Exception):
@@ -30,11 +31,9 @@ async def invalidate_checkin_cache(gym_id: uuid.UUID, user_id: uuid.UUID) -> Non
 async def _resolve_access(db: AsyncSession, *, gym_id: uuid.UUID, user_id: uuid.UUID) -> User:
     """Raises CheckInError if the member doesn't exist; otherwise returns the
     user row (still needed by the caller to persist the CheckIn audit row)."""
-    user_result = await db.execute(select(User).where(User.id == user_id, User.gym_id == gym_id))
-    user = user_result.scalar_one_or_none()
-    if user is None:
-        raise CheckInError("Miembro no encontrado en este gimnasio")
-    return user
+    return await get_or_404(
+        db, User, CheckInError, "Miembro no encontrado en este gimnasio", id=user_id, gym_id=gym_id
+    )
 
 
 async def _compute_access(db: AsyncSession, *, gym_id: uuid.UUID, user: User) -> tuple[bool, str | None]:

@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useIsUnscopedViewer } from "@/hooks/use-auth"
 import { useBranches } from "@/hooks/use-branches"
 
 const NO_BRANCH = "__none__"
@@ -16,7 +17,9 @@ const NO_BRANCH = "__none__"
 /**
  * Optional per-branch classification picker for creation forms (members,
  * payments, subscriptions, evaluations). A gym with no branches renders
- * nothing, so single-location gyms see no extra UI at all.
+ * nothing, so single-location gyms see no extra UI at all. Also renders
+ * nothing for a branch-scoped viewer — the backend forces their own branch
+ * onto anything they create regardless of this, so picking one is moot.
  */
 export function BranchSelect({
   value,
@@ -27,10 +30,11 @@ export function BranchSelect({
   onChange: (value: string | undefined) => void
   label?: string
 }) {
+  const isUnscoped = useIsUnscopedViewer()
   const { data } = useBranches()
   const branches = (data?.items ?? []).filter((b) => b.is_active)
 
-  if (branches.length === 0) return null
+  if (!isUnscoped || branches.length === 0) return null
 
   const items = [
     { value: NO_BRANCH, label: "Sin sucursal específica" },

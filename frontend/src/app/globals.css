@@ -35,6 +35,7 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-solid: var(--primary-solid);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -64,6 +65,12 @@
   --popover-foreground: oklch(0.97 0.006 275);
   --primary: oklch(0.62 0.2 275);
   --primary-foreground: oklch(0.98 0.01 275);
+  /* Relleno de botones y badges con texto encima: un paso más oscuro que
+     --primary para que el texto claro supere 4.5:1. --primary queda para
+     iconos, enlaces y barras sobre el fondo oscuro, donde el tono más claro
+     es el que contrasta. Un gimnasio con color propio pisa ambos (ver
+     useGymTheme en app-shell.tsx). */
+  --primary-solid: oklch(0.55 0.2 275);
   --secondary: oklch(0.27 0.03 275);
   --secondary-foreground: oklch(0.97 0.006 275);
   --muted: oklch(0.24 0.025 275);
@@ -106,6 +113,12 @@
   --popover-foreground: oklch(0.97 0.006 275);
   --primary: oklch(0.62 0.2 275);
   --primary-foreground: oklch(0.98 0.01 275);
+  /* Relleno de botones y badges con texto encima: un paso más oscuro que
+     --primary para que el texto claro supere 4.5:1. --primary queda para
+     iconos, enlaces y barras sobre el fondo oscuro, donde el tono más claro
+     es el que contrasta. Un gimnasio con color propio pisa ambos (ver
+     useGymTheme en app-shell.tsx). */
+  --primary-solid: oklch(0.55 0.2 275);
   --secondary: oklch(0.27 0.03 275);
   --secondary-foreground: oklch(0.97 0.006 275);
   --muted: oklch(0.24 0.025 275);
@@ -171,6 +184,20 @@
   .text-glow-ai {
     animation: ai-aura-pulse 2.4s ease-in-out infinite;
   }
+  /* Same treatment as text-gradient-primary/text-glow-ai, but off the
+     gym's own --primary/--accent instead of the fixed brand purple — for
+     the gym name in the authenticated header, which useGymTheme repoints
+     to that gym's custom colors (or leaves at the default theme, which
+     these vars already hold, for a gym that hasn't customized). */
+  .text-gradient-gym {
+    background-image: linear-gradient(90deg, var(--primary), var(--accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .text-glow-gym {
+    animation: gym-aura-pulse 2.4s ease-in-out infinite;
+  }
 }
 
 @keyframes ai-aura-pulse {
@@ -184,5 +211,19 @@
     text-shadow:
       0 0 16px oklch(0.8 0.2 295 / 95%),
       0 0 36px oklch(0.72 0.24 275 / 70%);
+  }
+}
+
+@keyframes gym-aura-pulse {
+  0%,
+  100% {
+    text-shadow:
+      0 0 8px color-mix(in oklch, var(--primary) 60%, transparent),
+      0 0 20px color-mix(in oklch, var(--accent) 40%, transparent);
+  }
+  50% {
+    text-shadow:
+      0 0 16px color-mix(in oklch, var(--primary) 95%, transparent),
+      0 0 36px color-mix(in oklch, var(--accent) 70%, transparent);
   }
 }

@@ -68,6 +68,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Response headers are same-origin-only by default under CORS — without
+    # this, api-client.ts's `response.headers.get("X-Gym-Blocked")` always
+    # reads null cross-origin (frontend:3000 / backend:8001+ are different
+    # origins), even though the header genuinely came back on the response.
+    expose_headers=["X-Gym-Blocked"],
 )
 app.add_middleware(TenantContextMiddleware)
 

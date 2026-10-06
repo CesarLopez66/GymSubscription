@@ -15,6 +15,7 @@ from app.models.user import User
 from app.models.workout import WorkoutPlan, WorkoutPlanItem
 from app.schemas.workout import WorkoutPlanCreate, WorkoutPlanItemCreate, WorkoutPlanUpdate
 from app.services import exercise_service, notification_service
+from app.services.db_helpers import deactivate_other_active
 from app.services.workout_llm_service import LLMGenerationError, generate_routine_via_llm
 
 # Days-per-week and sets/reps/rest picked by the same criteria the LLM
@@ -133,7 +134,7 @@ async def create_workout_plan(
         # a time, so leaving older ones flagged active too would make the
         # list look broken/inconsistent with no way to fix it short of a
         # manual PATCH — assigning a new active plan retires the old one.
-        await _deactivate_other_plans(db, gym_id, data.user_id)
+        await deactivate_other_active(db, WorkoutPlan, gym_id=gym_id, user_id=data.user_id)
 
     plan = WorkoutPlan(
         gym_id=gym_id,
@@ -245,18 +246,6 @@ async def get_adherence_last_n_days(
     )
     active_days = result.scalar_one()
     return {"active_days": active_days, "period_days": days}
-
-
-async def _deactivate_other_plans(db: AsyncSession, gym_id: uuid.UUID, user_id: uuid.UUID) -> None:
-    result = await db.execute(
-        select(WorkoutPlan).where(
-            WorkoutPlan.gym_id == gym_id,
-            WorkoutPlan.user_id == user_id,
-            WorkoutPlan.is_active.is_(True),
-        )
-    )
-    for plan in result.scalars().all():
-        plan.is_active = False
 
 
 async def get_workout_plan(db: AsyncSession, gym_id: uuid.UUID, plan_id: uuid.UUID) -> WorkoutPlan:
@@ -372,7 +361,7 @@ async def generate_workout_plan_from_evaluation(
             raise
         routine_name, items = _generate_rule_based_routine(evaluation, usable_exercises)
 
-    await _deactivate_other_plans(db, gym_id, evaluation.user_id)
+    await deactivate_other_active(db, WorkoutPlan, gym_id=gym_id, user_id=evaluation.user_id)
 
     plan = WorkoutPlan(
         gym_id=gym_id,

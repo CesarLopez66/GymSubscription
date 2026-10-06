@@ -5,7 +5,7 @@ import { Timer } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 
-export function RestTimer({ seconds }: { seconds: number }) {
+export function RestTimer({ seconds, className }: { seconds: number; className?: string }) {
   const [remaining, setRemaining] = React.useState<number | null>(null)
   const isRunning = remaining !== null && remaining > 0
 
@@ -22,6 +22,7 @@ export function RestTimer({ seconds }: { seconds: number }) {
       size="sm"
       onClick={() => setRemaining(seconds)}
       disabled={isRunning}
+      className={className}
     >
       <Timer className="size-3.5" />
       {isRunning ? `${remaining}s` : `Descanso ${seconds}s`}

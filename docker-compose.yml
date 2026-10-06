@@ -63,19 +63,24 @@ services:
       MODEL_PROVIDER: ${MODEL_PROVIDER:-ollama}
       MODEL_NAME: ${MODEL_NAME:-qwen2.5-coder:32b}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://10.10.1.70:11434}
+    # Host-side port only — the container still listens on 8000 internally
+    # (see the Dockerfile's EXPOSE/CMD). Mapped to 8001 on the host because
+    # an unrelated local service already holds 127.0.0.1:8000 on dev
+    # machines, which otherwise wins routing priority over this container's
+    # 0.0.0.0:8000 for "localhost" requests.
     ports:
-      - "8000:8000"
+      - "8001:8000"
 
   frontend:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+        NEXT_PUBLIC_API_URL: http://localhost:8001/api/v1
     restart: unless-stopped
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      NEXT_PUBLIC_API_URL: http://localhost:8001/api/v1
     ports:
       - "3000:3000"
 

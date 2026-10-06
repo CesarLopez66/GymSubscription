@@ -15,11 +15,13 @@ import { Activity, Banknote, CalendarClock, Dumbbell, ScanLine, Tag, Users } fro
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { BranchFilter } from "@/components/shared/branch-filter"
 import { EntityCard } from "@/components/shared/entity-card"
 import { FadeIn, StaggerGroup, StaggerItem } from "@/components/shared/motion"
 import { PageHero } from "@/components/shared/page-hero"
 import { StatCard } from "@/components/shared/stat-card"
 import { useAuthStore } from "@/store/auth-store"
+import { useBranchFilterStore } from "@/store/branch-filter-store"
 import { PAYMENT_STATUS_BADGE_CLASSES, urgencyBadgeClass } from "@/lib/badge-colors"
 import { formatCurrency } from "@/lib/currency"
 import { daysUntil, formatRelativeDate, formatRelativeFutureDate } from "@/lib/format"
@@ -45,14 +47,15 @@ function isoDate(d: Date): string {
 
 export default function DashboardOverviewPage() {
   const user = useAuthStore((s) => s.user)
-  const { data: members } = useUsers("MEMBER", 1, 1)
-  const { data: trainers } = useUsers("TRAINER", 1, 1)
-  const { data: nutritionists } = useUsers("NUTRITIONIST", 1, 1)
-  const { data: revenue } = useRevenueSummary()
-  const { data: dailyRevenue } = useDailyRevenue(30)
-  const { data: payments } = usePayments(undefined, 1, 100)
-  const { data: checkIns } = useCheckIns(undefined, { pageSize: 100 })
-  const { data: subscriptions } = useSubscriptions(undefined, 1, 100)
+  const branchId = useBranchFilterStore((s) => s.branchId)
+  const { data: members } = useUsers("MEMBER", 1, 1, branchId)
+  const { data: trainers } = useUsers("TRAINER", 1, 1, branchId)
+  const { data: nutritionists } = useUsers("NUTRITIONIST", 1, 1, branchId)
+  const { data: revenue } = useRevenueSummary(branchId)
+  const { data: dailyRevenue } = useDailyRevenue(30, branchId)
+  const { data: payments } = usePayments(undefined, 1, 100, branchId)
+  const { data: checkIns } = useCheckIns(undefined, { pageSize: 100, branchId })
+  const { data: subscriptions } = useSubscriptions(undefined, 1, 100, branchId)
   const { data: plans } = useMemberships()
   const { data: promotions } = usePromotions(1, 100)
 
@@ -93,7 +96,12 @@ export default function DashboardOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <PageHero title={`Hola, ${user?.first_name ?? "Admin"} 👋`} />
+      <PageHero title={`Hola, ${user?.first_name ?? "Admin"}`} />
+
+      {/* Outside PageHero (not its `action` slot) because that card's
+          `overflow-hidden` — needed to clip the radial background at the
+          rounded corners — would also clip BranchFilter's dropdown panel. */}
+      <BranchFilter />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Miembros" value={members?.total} icon={Users} delay={0} />

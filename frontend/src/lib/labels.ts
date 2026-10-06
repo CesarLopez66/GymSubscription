@@ -8,6 +8,7 @@ import type {
   PaymentStatus,
   PaymentType,
   SaaSPlanTier,
+  SubscriptionRequestStatus,
   SubscriptionStatus,
   UserRole,
 } from "@/lib/types"
@@ -18,6 +19,7 @@ import type {
 export const ROLE_LABELS: Record<UserRole, string> = {
   SUPERADMIN: "Super administrador",
   GYM_ADMIN: "Administrador de gimnasio",
+  BRANCH_MANAGER: "Encargado de sucursal",
   TRAINER: "Entrenador",
   NUTRITIONIST: "Nutricionista",
   MEMBER: "Miembro",
@@ -35,6 +37,12 @@ export const PLAN_TIER_LABELS: Record<SaaSPlanTier, string> = {
   BASIC: "Básico",
   PRO: "Pro",
   ENTERPRISE: "Empresarial",
+}
+
+export const SUBSCRIPTION_REQUEST_STATUS_LABELS: Record<SubscriptionRequestStatus, string> = {
+  PENDING: "Pendiente",
+  APPROVED: "Aprobada",
+  REJECTED: "Rechazada",
 }
 
 export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {

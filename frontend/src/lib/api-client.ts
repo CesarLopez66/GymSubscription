@@ -22,7 +22,7 @@ function extractDetail(raw: unknown, fallback: string): string {
 }
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001/api/v1"
 
 export class ApiError extends Error {
   status: number
@@ -34,6 +34,26 @@ export class ApiError extends Error {
     this.status = status
     this.detail = detail
   }
+}
+
+// A hard navigation (not router.push) is intentional: this module sits
+// outside React and a full reload guarantees a clean app/query cache state
+// after an unrecoverable session/tenant-access change. Returns a promise
+// that never settles, rather than throwing, because the caller's page is
+// about to unload anyway — throwing here would still let every other
+// in-flight request (a single dashboard mount fires several in parallel)
+// reach its own onError and pop its own toast in the moment before
+// navigation actually completes, i.e. a toast storm right as the screen
+// redirects.
+function redirectAndAbandon<T>(to: string, fallbackMessage: string): Promise<T> {
+  if (typeof window === "undefined") {
+    // No navigation possible outside the browser (this module's queries
+    // only ever run client-side in practice) — fail fast instead of
+    // hanging a server-side call forever.
+    return Promise.reject(new ApiError(401, fallbackMessage))
+  }
+  window.location.href = to
+  return new Promise<T>(() => {})
 }
 
 let refreshPromise: Promise<string | null> | null = null
@@ -95,25 +115,23 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     if (accessToken) {
       response = await doFetch(accessToken)
     } else {
-      if (typeof window !== "undefined") {
-        // A hard navigation (not router.push) is intentional: this module
-        // sits outside React and a full reload guarantees a clean app/query
-        // cache state after an unrecoverable session expiry.
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.href = "/login"
-      }
-      throw new ApiError(401, "Session expired")
+      return redirectAndAbandon<T>("/login", "Session expired")
     }
   } else if (response.status === 401 && !skipAuth && useAuthStore.getState().impersonation) {
     // "View as" sessions are access-token-only (no refresh) so they expire
     // on their own — land the superadmin back on their real session instead
     // of leaving every request 401ing silently.
     useAuthStore.getState().stopImpersonation()
-    if (typeof window !== "undefined") {
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.href = "/superadmin"
-    }
-    throw new ApiError(401, "Impersonation session expired")
+    return redirectAndAbandon<T>("/superadmin", "Impersonation session expired")
+  } else if (response.status === 403 && !skipAuth && response.headers.get("X-Gym-Blocked") === "true") {
+    // The gym this account belongs to got suspended (auto, after its trial
+    // ran out with no paid plan, or by a superadmin) — every endpoint now
+    // 403s with this same header, so without this every simultaneous query
+    // on the current screen would independently toast the same "gimnasio
+    // suspendido" message. Force a clean logout instead, same shape as the
+    // two cases above.
+    useAuthStore.getState().clear()
+    return redirectAndAbandon<T>("/login", "Gym suspended")
   }
 
   if (!response.ok) {

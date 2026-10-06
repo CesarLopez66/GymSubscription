@@ -8,6 +8,7 @@ from app.models.evaluation import PhysicalEvaluation
 from app.models.user import User
 from app.schemas.evaluation import EvaluationCreate, EvaluationUpdate
 from app.services import notification_service
+from app.services.db_helpers import get_or_404
 
 
 class EvaluationNotFoundError(Exception):
@@ -21,11 +22,14 @@ class InvalidEvaluationMemberError(Exception):
 async def create_evaluation(
     db: AsyncSession, gym_id: uuid.UUID, evaluated_by_id: uuid.UUID, data: EvaluationCreate
 ) -> PhysicalEvaluation:
-    member_result = await db.execute(
-        select(User).where(User.id == data.user_id, User.gym_id == gym_id)
+    await get_or_404(
+        db,
+        User,
+        InvalidEvaluationMemberError,
+        "Miembro no encontrado en este gimnasio",
+        id=data.user_id,
+        gym_id=gym_id,
     )
-    if member_result.scalar_one_or_none() is None:
-        raise InvalidEvaluationMemberError("Miembro no encontrado en este gimnasio")
 
     evaluation = PhysicalEvaluation(
         gym_id=gym_id,
@@ -50,15 +54,14 @@ async def create_evaluation(
 async def get_evaluation(
     db: AsyncSession, gym_id: uuid.UUID, evaluation_id: uuid.UUID
 ) -> PhysicalEvaluation:
-    result = await db.execute(
-        select(PhysicalEvaluation).where(
-            PhysicalEvaluation.id == evaluation_id, PhysicalEvaluation.gym_id == gym_id
-        )
+    return await get_or_404(
+        db,
+        PhysicalEvaluation,
+        EvaluationNotFoundError,
+        "Evaluación física no encontrada",
+        id=evaluation_id,
+        gym_id=gym_id,
     )
-    evaluation = result.scalar_one_or_none()
-    if evaluation is None:
-        raise EvaluationNotFoundError("Evaluación física no encontrada")
-    return evaluation
 
 
 async def list_evaluations(

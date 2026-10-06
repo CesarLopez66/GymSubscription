@@ -22,6 +22,15 @@ class UserCreate(UserBase):
     branch_id: uuid.UUID | None = None
 
 
+class GymAdminCreate(UserBase):
+    """Payload for a superadmin creating a gym's first (or an additional)
+    GYM_ADMIN — narrower than UserCreate on purpose: the caller can't pick a
+    role, gym, or branch, since the endpoint that consumes this always
+    forces GYM_ADMIN on the gym given in the URL."""
+
+    password: str = Field(min_length=8, max_length=128)
+
+
 class UserUpdate(BaseModel):
     first_name: str | None = Field(default=None, min_length=1, max_length=100)
     last_name: str | None = Field(default=None, min_length=1, max_length=100)

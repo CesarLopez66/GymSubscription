@@ -5,6 +5,7 @@ from app.models.evaluation import PhysicalEvaluation
 from app.models.exercise import Exercise
 from app.models.gym import Gym
 from app.models.gym_audit_log import GymAuditLog
+from app.models.gym_subscription_payment import GymSubscriptionPayment
 from app.models.membership import Membership
 from app.models.notification import Notification
 from app.models.nutrition import NutritionPlan
@@ -23,6 +24,7 @@ __all__ = [
     "Exercise",
     "Gym",
     "GymAuditLog",
+    "GymSubscriptionPayment",
     "Membership",
     "Notification",
     "NutritionPlan",

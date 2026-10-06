@@ -7,6 +7,7 @@ from app.deps.pagination import PaginationParams, paginate
 from app.models.membership import Membership
 from app.models.subscription import MemberSubscription
 from app.schemas.membership import MembershipCreate, MembershipUpdate
+from app.services.db_helpers import get_or_404
 
 
 class MembershipNotFoundError(Exception):
@@ -26,13 +27,14 @@ async def create_membership(db: AsyncSession, gym_id: uuid.UUID, data: Membershi
 
 
 async def get_membership(db: AsyncSession, gym_id: uuid.UUID, membership_id: uuid.UUID) -> Membership:
-    result = await db.execute(
-        select(Membership).where(Membership.id == membership_id, Membership.gym_id == gym_id)
+    return await get_or_404(
+        db,
+        Membership,
+        MembershipNotFoundError,
+        "Plan de membresía no encontrado",
+        id=membership_id,
+        gym_id=gym_id,
     )
-    membership = result.scalar_one_or_none()
-    if membership is None:
-        raise MembershipNotFoundError("Plan de membresía no encontrado")
-    return membership
 
 
 async def list_memberships(

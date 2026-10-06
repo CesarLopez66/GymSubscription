@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { toast } from "sonner"
-import { Building2, Pencil, Plus, QrCode, RotateCcw, Trash2 } from "lucide-react"
+import { Building2, Pencil, Plus, QrCode, RotateCcw, Trash2, UserCog } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 
 import { Badge } from "@/components/ui/badge"
@@ -45,6 +45,7 @@ import {
   useUpdateBranch,
   type BranchCreateInput,
 } from "@/hooks/use-branches"
+import { useCreateUser, useDeactivateUser, useUsers } from "@/hooks/use-users"
 
 const branchSchema = z.object({
   name: z.string().min(1, "Requerido"),
@@ -53,6 +54,155 @@ const branchSchema = z.object({
 })
 
 type BranchFormValues = z.infer<typeof branchSchema>
+
+const managerSchema = z.object({
+  first_name: z.string().min(1, "Requerido"),
+  last_name: z.string().min(1, "Requerido"),
+  email: z.string().email(),
+  password: z.string().min(8, "Debe tener al menos 8 caracteres"),
+})
+
+type ManagerFormValues = z.infer<typeof managerSchema>
+
+function BranchManagersDialog({ branch }: { branch: Branch }) {
+  const [open, setOpen] = React.useState(false)
+  const { data, isLoading } = useUsers("BRANCH_MANAGER", 1, 50, branch.id)
+  const createUser = useCreateUser()
+  const deactivateUser = useDeactivateUser()
+  const managers = (data?.items ?? []).filter((m) => m.is_active)
+
+  const form = useForm<ManagerFormValues>({
+    resolver: zodResolver(managerSchema),
+    defaultValues: { first_name: "", last_name: "", email: "", password: "" },
+  })
+
+  const onSubmit = (values: ManagerFormValues) => {
+    createUser.mutate(
+      { ...values, roles: ["BRANCH_MANAGER"], branch_id: branch.id },
+      {
+        onSuccess: () => {
+          toast.success(`${values.first_name} ${values.last_name} agregado como encargado`)
+          form.reset()
+        },
+        onError: (error) =>
+          toast.error(error instanceof ApiError ? error.detail : "No se pudo agregar el encargado"),
+      }
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" />}>
+        <UserCog className="size-3.5" />
+        Encargados
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Encargados — {branch.name}</DialogTitle>
+          <DialogDescription>
+            Gestionan el día a día de esta sucursal (personal, miembros, pagos, suscripciones y
+            check-in) sin acceso al resto del gimnasio.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          {isLoading && <Skeleton className="h-10 w-full" />}
+          {!isLoading && managers.length === 0 && (
+            <p className="text-sm text-muted-foreground">Todavía no hay encargados asignados.</p>
+          )}
+          {managers.map((m) => (
+            <div key={m.id} className="flex items-center justify-between gap-2 rounded-lg border p-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">
+                  {m.first_name} {m.last_name}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">{m.email}</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                title="Quitar como encargado"
+                disabled={deactivateUser.isPending}
+                onClick={() =>
+                  deactivateUser.mutate(m.id, {
+                    onSuccess: () => toast.success(`${m.first_name} ya no es encargado`),
+                    onError: (error) =>
+                      toast.error(error instanceof ApiError ? error.detail : "No se pudo quitar"),
+                  })
+                }
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-3 border-t pt-3">
+            <p className="text-sm font-medium">Agregar encargado</p>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="first_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="last_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Apellido</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Correo electrónico</FormLabel>
+                  <FormControl>
+                    <Input type="email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Contraseña temporal</FormLabel>
+                  <FormControl>
+                    <Input type="password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button type="submit" disabled={createUser.isPending}>
+              {createUser.isPending ? "Agregando…" : "Agregar encargado"}
+            </Button>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function BranchQrDialog({ branch }: { branch: Branch }) {
   const [open, setOpen] = React.useState(false)
@@ -311,7 +461,10 @@ export default function BranchesPage() {
                         <p>{b.phone ?? "Sin teléfono registrado"}</p>
                       </div>
                       <div className="flex items-center justify-between gap-2 border-t pt-3">
-                        <BranchQrDialog branch={b} />
+                        <div className="flex items-center gap-1">
+                          <BranchQrDialog branch={b} />
+                          <BranchManagersDialog branch={b} />
+                        </div>
                         <div className="flex items-center gap-1">
                           <BranchFormDialog
                             branch={b}

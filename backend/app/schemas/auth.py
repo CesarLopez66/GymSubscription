@@ -1,4 +1,5 @@
 import uuid
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -10,6 +11,19 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1)
     gym_subdomain: str | None = None
+
+
+class GymChoice(BaseModel):
+    """One candidate account surfaced when email+password alone match more
+    than one gym — the client re-submits with this subdomain to disambiguate."""
+
+    subdomain: str
+    name: str
+
+
+class LoginChoicesResponse(BaseModel):
+    requires_gym_selection: Literal[True] = True
+    gyms: list[GymChoice]
 
 
 class RefreshRequest(BaseModel):

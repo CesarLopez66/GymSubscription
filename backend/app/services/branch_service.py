@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.deps.pagination import PaginationParams, paginate
 from app.models.branch import Branch
 from app.schemas.branch import BranchCreate, BranchUpdate
+from app.services.db_helpers import ensure_unique, get_or_404
 
 
 class BranchNotFoundError(Exception):
@@ -20,12 +21,15 @@ class BranchNameTakenError(Exception):
 async def _ensure_name_available(
     db: AsyncSession, gym_id: uuid.UUID, name: str, *, exclude_branch_id: uuid.UUID | None = None
 ) -> None:
-    query = select(Branch).where(Branch.gym_id == gym_id, Branch.name == name)
-    if exclude_branch_id is not None:
-        query = query.where(Branch.id != exclude_branch_id)
-    result = await db.execute(query)
-    if result.scalar_one_or_none() is not None:
-        raise BranchNameTakenError(f"Ya existe una sucursal llamada '{name}'")
+    await ensure_unique(
+        db,
+        Branch,
+        BranchNameTakenError,
+        f"Ya existe una sucursal llamada '{name}'",
+        exclude_id=exclude_branch_id,
+        gym_id=gym_id,
+        name=name,
+    )
 
 
 async def create_branch(db: AsyncSession, gym_id: uuid.UUID, data: BranchCreate) -> Branch:
@@ -38,11 +42,9 @@ async def create_branch(db: AsyncSession, gym_id: uuid.UUID, data: BranchCreate)
 
 
 async def get_branch(db: AsyncSession, gym_id: uuid.UUID, branch_id: uuid.UUID) -> Branch:
-    result = await db.execute(select(Branch).where(Branch.id == branch_id, Branch.gym_id == gym_id))
-    branch = result.scalar_one_or_none()
-    if branch is None:
-        raise BranchNotFoundError("Sucursal no encontrada")
-    return branch
+    return await get_or_404(
+        db, Branch, BranchNotFoundError, "Sucursal no encontrada", id=branch_id, gym_id=gym_id
+    )
 
 
 async def get_branch_by_checkin_token(db: AsyncSession, token: str) -> Branch | None:

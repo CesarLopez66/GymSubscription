@@ -1,4 +1,10 @@
-export type UserRole = "SUPERADMIN" | "GYM_ADMIN" | "TRAINER" | "NUTRITIONIST" | "MEMBER"
+export type UserRole =
+  | "SUPERADMIN"
+  | "GYM_ADMIN"
+  | "BRANCH_MANAGER"
+  | "TRAINER"
+  | "NUTRITIONIST"
+  | "MEMBER"
 export type GymStatus = "TRIAL" | "ACTIVE" | "SUSPENDED" | "CANCELLED"
 export type SaaSPlanTier = "FREE" | "BASIC" | "PRO" | "ENTERPRISE"
 export type SubscriptionStatus = "ACTIVE" | "EXPIRED" | "CANCELLED" | "PENDING"
@@ -36,9 +42,31 @@ export interface Gym {
   contact_phone: string | null
   address: string | null
   payment_qr_image: string | null
+  primary_color: string | null
+  secondary_color: string | null
   trial_ends_at: string | null
+  subscription_ends_at: string | null
   created_at: string
   updated_at: string
+}
+
+export type SubscriptionRequestStatus = "PENDING" | "APPROVED" | "REJECTED"
+
+export interface GymSubscriptionPayment {
+  id: string
+  gym_id: string
+  requested_plan_tier: SaaSPlanTier
+  amount: string
+  proof_image: string
+  status: SubscriptionRequestStatus
+  rejection_reason: string | null
+  reviewed_by_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface GymSubscriptionPaymentWithGym extends GymSubscriptionPayment {
+  gym_name: string
 }
 
 export interface User {
@@ -272,6 +300,7 @@ export interface GymBreakdown {
   branches_total: number
   active_subscriptions: number
   revenue_period: number
+  platform_revenue_period: number
   payments_count_period: number
   checkins_period: number
   checkins_trend_pct: number | null
@@ -300,6 +329,7 @@ export interface PlatformOverview {
   period_checkins: number
   revenue_by_day: RevenueByDay[]
   gyms_breakdown: GymBreakdown[]
+  platform_revenue_period: number
 }
 
 export interface GymDetail {
@@ -313,10 +343,21 @@ export interface GymDetail {
   branches: Branch[]
   recent_users: User[]
   recent_payments: RecentPayment[]
+  subscription_payments: GymSubscriptionPayment[]
 }
 
 export interface TokenPair {
   access_token: string
   refresh_token: string
   token_type: string
+}
+
+export interface GymChoice {
+  subdomain: string
+  name: string
+}
+
+export interface LoginChoicesResponse {
+  requires_gym_selection: true
+  gyms: GymChoice[]
 }

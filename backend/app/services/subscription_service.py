@@ -12,6 +12,7 @@ from app.models.user import User
 from app.schemas.subscription import SubscriptionCreate, SubscriptionUpdate
 from app.services import promotion_service
 from app.services.checkin_service import invalidate_checkin_cache
+from app.services.db_helpers import get_or_404
 from app.services.membership_service import get_membership
 
 
@@ -138,14 +139,14 @@ async def create_subscription(
 async def get_subscription(
     db: AsyncSession, gym_id: uuid.UUID, subscription_id: uuid.UUID
 ) -> MemberSubscription:
-    result = await db.execute(
-        select(MemberSubscription).where(
-            MemberSubscription.id == subscription_id, MemberSubscription.gym_id == gym_id
-        )
+    return await get_or_404(
+        db,
+        MemberSubscription,
+        SubscriptionNotFoundError,
+        "Suscripción no encontrada",
+        id=subscription_id,
+        gym_id=gym_id,
     )
-    subscription = result.scalar_one_or_none()
-    if subscription is None:
-        raise SubscriptionNotFoundError("Suscripción no encontrada")
     return subscription
 
 

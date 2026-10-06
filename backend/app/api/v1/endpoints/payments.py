@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.deps.auth import get_current_active_user, get_tenant_gym_id, require_role
+from app.deps.auth import get_current_active_user, get_effective_branch_id, get_tenant_gym_id, require_role
+from app.deps.branch_scope import ensure_user_in_branch
 from app.deps.pagination import PaginationParams, pagination_params
 from app.models.enums import UserRole
 from app.models.user import User
@@ -27,8 +28,22 @@ from app.services.payment_service import (
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
-require_gym_admin = require_role([UserRole.GYM_ADMIN])
+require_operator = require_role([UserRole.GYM_ADMIN, UserRole.BRANCH_MANAGER])
 require_member = require_role([UserRole.MEMBER])
+
+
+async def _get_scoped_payment(
+    db: AsyncSession, gym_id: uuid.UUID, payment_id: uuid.UUID, effective_branch: uuid.UUID | None
+):
+    """Fetches a payment and 404s (not just the plain not-found case) when a
+    branch-scoped actor targets one outside their own branch."""
+    try:
+        payment = await payment_service.get_payment(db, gym_id, payment_id)
+    except PaymentNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if effective_branch is not None and payment.branch_id != effective_branch:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pago no encontrado")
+    return payment
 
 
 @router.post("", response_model=PaymentRead, status_code=status.HTTP_201_CREATED)
@@ -36,8 +51,12 @@ async def create_payment(
     payload: PaymentCreate,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
-    current_user: User = Depends(require_gym_admin),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
+    current_user: User = Depends(require_operator),
 ) -> PaymentRead:
+    if effective_branch is not None:
+        payload = payload.model_copy(update={"branch_id": effective_branch})
+        await ensure_user_in_branch(db, gym_id, payload.user_id, effective_branch)
     try:
         payment = await payment_service.create_payment(db, gym_id, current_user.id, payload)
     except InvalidPaymentReferenceError as exc:
@@ -55,16 +74,18 @@ async def list_payments(
     branch_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     pagination: PaginationParams = Depends(pagination_params),
     current_user: User = Depends(get_current_active_user),
 ) -> Page[PaymentRead]:
     if UserRole.MEMBER in current_user.roles:
         user_id = current_user.id
-    elif UserRole.GYM_ADMIN not in current_user.roles:
+    elif set(current_user.roles).isdisjoint({UserRole.GYM_ADMIN, UserRole.BRANCH_MANAGER}):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
+    effective = effective_branch if effective_branch is not None else branch_id
     payments, total = await payment_service.list_payments(
-        db, gym_id, pagination, user_id=user_id, branch_id=branch_id
+        db, gym_id, pagination, user_id=user_id, branch_id=effective
     )
     return Page.create(
         items=[PaymentRead.model_validate(p) for p in payments],
@@ -76,21 +97,27 @@ async def list_payments(
 
 @router.get("/revenue-summary")
 async def revenue_summary(
+    branch_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
-    _: User = Depends(require_gym_admin),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
+    _: User = Depends(require_operator),
 ) -> dict[str, float]:
-    return await payment_service.get_revenue_summary(db, gym_id)
+    effective = effective_branch if effective_branch is not None else branch_id
+    return await payment_service.get_revenue_summary(db, gym_id, branch_id=effective)
 
 
 @router.get("/revenue-daily")
 async def revenue_daily(
     days: int = 30,
+    branch_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
-    _: User = Depends(require_gym_admin),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
+    _: User = Depends(require_operator),
 ) -> list[dict]:
-    return await payment_service.get_daily_revenue(db, gym_id, days)
+    effective = effective_branch if effective_branch is not None else branch_id
+    return await payment_service.get_daily_revenue(db, gym_id, days, branch_id=effective)
 
 
 @router.post("/self", response_model=PaymentRead, status_code=status.HTTP_201_CREATED)
@@ -116,8 +143,10 @@ async def approve_payment_claim(
     payment_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
-    _: User = Depends(require_gym_admin),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
+    _: User = Depends(require_operator),
 ) -> PaymentRead:
+    await _get_scoped_payment(db, gym_id, payment_id, effective_branch)
     try:
         payment = await payment_service.approve_payment(db, gym_id, payment_id)
     except PaymentNotFoundError as exc:
@@ -133,8 +162,10 @@ async def reject_payment_claim(
     payload: PaymentRejectRequest,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
-    _: User = Depends(require_gym_admin),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
+    _: User = Depends(require_operator),
 ) -> PaymentRead:
+    await _get_scoped_payment(db, gym_id, payment_id, effective_branch)
     try:
         payment = await payment_service.reject_payment(db, gym_id, payment_id, payload.reason)
     except PaymentNotFoundError as exc:
@@ -149,6 +180,7 @@ async def get_payment(
     payment_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
     current_user: User = Depends(get_current_active_user),
 ) -> PaymentRead:
     try:
@@ -158,6 +190,12 @@ async def get_payment(
 
     if UserRole.MEMBER in current_user.roles and payment.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
+    if (
+        UserRole.MEMBER not in current_user.roles
+        and effective_branch is not None
+        and payment.branch_id != effective_branch
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pago no encontrado")
 
     return PaymentRead.model_validate(payment)
 
@@ -168,8 +206,10 @@ async def update_payment(
     payload: PaymentUpdate,
     db: AsyncSession = Depends(get_db),
     gym_id: uuid.UUID = Depends(get_tenant_gym_id),
-    _: User = Depends(require_gym_admin),
+    effective_branch: uuid.UUID | None = Depends(get_effective_branch_id),
+    _: User = Depends(require_operator),
 ) -> PaymentRead:
+    await _get_scoped_payment(db, gym_id, payment_id, effective_branch)
     try:
         payment = await payment_service.update_payment_status(db, gym_id, payment_id, payload)
     except PaymentNotFoundError as exc:

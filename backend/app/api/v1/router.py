@@ -6,12 +6,14 @@ from app.api.v1.endpoints import (
     checkin,
     evaluations,
     exercises,
+    gym_subscriptions,
     gyms,
     memberships,
     notifications,
     nutrition,
     payments,
     promotions,
+    registration,
     subscriptions,
     superadmin,
     users,
@@ -20,7 +22,9 @@ from app.api.v1.endpoints import (
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
+api_router.include_router(registration.router)
 api_router.include_router(gyms.router)
+api_router.include_router(gym_subscriptions.router)
 api_router.include_router(branches.router)
 api_router.include_router(users.router)
 api_router.include_router(memberships.router)

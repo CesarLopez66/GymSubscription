@@ -10,6 +10,7 @@ from app.models.gym import Gym
 from app.models.user import User
 from app.schemas.user import UserChangePassword, UserCreate, UserUpdate
 from app.services.checkin_service import invalidate_checkin_cache
+from app.services.db_helpers import ensure_unique, get_or_404
 
 
 class UserNotFoundError(Exception):
@@ -29,11 +30,14 @@ class MemberLimitExceededError(Exception):
 
 
 async def _ensure_email_available(db: AsyncSession, gym_id: uuid.UUID, email: str) -> None:
-    result = await db.execute(
-        select(User).where(User.gym_id == gym_id, User.email == email)
+    await ensure_unique(
+        db,
+        User,
+        EmailAlreadyExistsError,
+        f"El correo '{email}' ya está registrado en este gimnasio",
+        gym_id=gym_id,
+        email=email,
     )
-    if result.scalar_one_or_none() is not None:
-        raise EmailAlreadyExistsError(f"El correo '{email}' ya está registrado en este gimnasio")
 
 
 async def _ensure_member_limit_not_exceeded(db: AsyncSession, gym_id: uuid.UUID) -> None:
@@ -79,13 +83,9 @@ async def create_user(db: AsyncSession, gym_id: uuid.UUID, data: UserCreate) -> 
 
 
 async def get_user(db: AsyncSession, gym_id: uuid.UUID, user_id: uuid.UUID) -> User:
-    result = await db.execute(
-        select(User).where(User.id == user_id, User.gym_id == gym_id)
+    return await get_or_404(
+        db, User, UserNotFoundError, "Usuario no encontrado", id=user_id, gym_id=gym_id
     )
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise UserNotFoundError("Usuario no encontrado")
-    return user
 
 
 async def list_users(

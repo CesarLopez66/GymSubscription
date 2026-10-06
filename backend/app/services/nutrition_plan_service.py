@@ -15,6 +15,7 @@ from app.schemas.nutrition import (
     NutritionPlanUpdate,
 )
 from app.services import notification_service
+from app.services.db_helpers import deactivate_other_active, get_or_404
 from app.services.health_engine import WorkoutTemplateRecommendation, generate_health_prescription
 
 
@@ -31,27 +32,14 @@ class MissingSexError(Exception):
 
 
 async def _get_member(db: AsyncSession, gym_id: uuid.UUID, user_id: uuid.UUID) -> User:
-    result = await db.execute(select(User).where(User.id == user_id, User.gym_id == gym_id))
-    member = result.scalar_one_or_none()
-    if member is None:
-        raise InvalidNutritionMemberError("Miembro no encontrado en este gimnasio")
-    return member
-
-
-async def _deactivate_other_plans(db: AsyncSession, gym_id: uuid.UUID, user_id: uuid.UUID) -> None:
-    # Every new nutrition plan is created active (there's no way to create one
-    # inactive), and the UI only ever shows one "Activo" plan at a time — so
-    # without this, older plans would keep showing as active forever with no
-    # way to fix it short of a manual PATCH.
-    result = await db.execute(
-        select(NutritionPlan).where(
-            NutritionPlan.gym_id == gym_id,
-            NutritionPlan.user_id == user_id,
-            NutritionPlan.is_active.is_(True),
-        )
+    return await get_or_404(
+        db,
+        User,
+        InvalidNutritionMemberError,
+        "Miembro no encontrado en este gimnasio",
+        id=user_id,
+        gym_id=gym_id,
     )
-    for plan in result.scalars().all():
-        plan.is_active = False
 
 
 async def generate_and_create_nutrition_plan(
@@ -71,7 +59,7 @@ async def generate_and_create_nutrition_plan(
         body_fat_percentage=data.body_fat_percentage,
     )
 
-    await _deactivate_other_plans(db, gym_id, data.user_id)
+    await deactivate_other_active(db, NutritionPlan, gym_id=gym_id, user_id=data.user_id)
 
     plan = NutritionPlan(
         gym_id=gym_id,
@@ -110,7 +98,7 @@ async def create_nutrition_plan(
     db: AsyncSession, gym_id: uuid.UUID, created_by_id: uuid.UUID, data: NutritionPlanCreate
 ) -> NutritionPlan:
     await _get_member(db, gym_id, data.user_id)
-    await _deactivate_other_plans(db, gym_id, data.user_id)
+    await deactivate_other_active(db, NutritionPlan, gym_id=gym_id, user_id=data.user_id)
 
     plan = NutritionPlan(gym_id=gym_id, created_by_id=created_by_id, **data.model_dump())
     db.add(plan)
